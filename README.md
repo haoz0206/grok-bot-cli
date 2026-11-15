@@ -53,6 +53,13 @@ after that opaque entry ID. Its JSON includes `cursor`, `entryCount`, and `gapRe
 An unchanged poll has `entryCount: 0`; an unknown or expired ID returns one bounded
 snapshot with `gapReset: true`. The gateway request remains limit-only.
 
+With desktop or Cursor credentials, messages use the Cursor backend's
+`SendGrokBotUserMessage` RPC, which supports server-hosted Bots. Explicit
+`GROK_BOT_GATEWAY_URL` + `GROK_BOT_GATEWAY_TOKEN` overrides retain the gateway
+send endpoint. An acknowledged send is reported as `accepted` only after its
+nonce matches a transcript entry. Missing receipts and transport failures remain
+`unknown`; inspect the thread before resending.
+
 Run `gbot --help` for every command.
 Options are command-local (for example, `gbot send --history-dir DIR ...`);
 `--json` prints the canonical JSON result; `send` and the `codex` commands also report failures as

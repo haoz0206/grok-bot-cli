@@ -76,6 +76,49 @@ function fresh() {
 
 const roster = { agents: [{ id: "one", name: "Research" }] };
 
+test("cached desktop sessions send with selected account and team credentials", async (t) => {
+  const f = fixture(t);
+  const session = await connectGateway(f);
+  process.env.CURSOR_ACCESS_TOKEN = "unrelated-environment-account";
+  const calls = [];
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    calls.push(url);
+    if (url.endsWith("/listAgents")) return Response.json(roster);
+    if (url.endsWith("/getAgentTranscriptTail")) return Response.json({ entries: [{ id: "echo", clientNonce: "nonce" }] });
+    assert.equal(url, "http://127.0.0.1:1340/aiserver.v1.GrokBotService/SendGrokBotUserMessage");
+    assert.equal(options.headers.authorization, "Bearer fake-access");
+    assert.equal(options.headers["x-cursor-team-id"], "12");
+    assert.equal(options.headers["x-anyrun-network-token"], undefined);
+    assert.equal(JSON.parse(options.body).messageId, "nonce");
+    return Response.json({ delivery: 2 });
+  });
+  const result = await sendPrompt(session, "Research", "synthetic test only", { clientNonce: "nonce" });
+  assert.equal(result.delivery, "accepted");
+  assert.equal(result.messageId, "echo");
+  assert.equal(calls.length, 3);
+});
+
+for (const change of ["switch", "sign-out", "cancel"]) {
+  test(`desktop ${change} during resolution prevents backend submission`, async (t) => {
+    const f = fixture(t);
+    const session = await connectGateway(f);
+    const controller = new AbortController();
+    let calls = 0;
+    t.mock.method(globalThis, "fetch", async (url) => {
+      calls++;
+      assert.ok(url.endsWith("/listAgents"));
+      if (change === "cancel") controller.abort();
+      else {
+        f.store.active = change === "switch" ? "other" : null;
+        f.save();
+      }
+      return Response.json(roster);
+    });
+    await assert.rejects(sendPrompt(session, "Research", "synthetic test only", { signal: controller.signal }), { delivery: "rejected" });
+    assert.equal(calls, 1);
+  });
+}
+
 test("hibernated read refreshes active credentials, team and routing headers without rewriting app data", async (t) => {
   const f = fixture(t);
   const original = readFileSync(f.descriptor, "utf8");

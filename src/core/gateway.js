@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { ensureSandboxHeaders, headersFromEnsureSandbox, headersFromEnv, mergeGatewayHeaders, normalizeHeaderMap, requestHeaders } from "./headers.js";
 import { grokBotActiveAccountKey, hasGrokBotAppCredentials, hasGrokBotGatewaySession, loadGrokBotAppCredentials, loadGrokBotGatewaySession } from "./app-session.js";
 import { AVATAR_COLORS, AVATAR_SHAPES, MAX_GROUP_MEMBERS } from "./store.js";
@@ -19,6 +20,10 @@ const GATEWAY_TIMEOUT_MS = 30000;
 export const GATEWAY_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
 const READ_ONLY_METHODS = new Set(["listAgents", "getAgentWorkflows", "getAgentTranscriptTail", "getAgentThread"]);
 const reconnectStates = new WeakMap();
+const backendSendResponse = z.object({
+  delivery: z.union([z.number().int(), z.string()]).optional(),
+  refusal: z.object({ message: z.string().optional() }).optional(),
+});
 
 function assertGatewayActive(signal) {
   if (signal?.aborted) {
@@ -489,6 +494,63 @@ export async function removeGroupMember(session, groupRef, memberRef) {
   return setGroupMembers(session, group.id, next);
 }
 
+async function backendSendPrompt(state, body, signal) {
+  const method = "SendGrokBotUserMessage";
+  let url, options;
+  try {
+    const credentials = state.accountKey
+      ? loadGrokBotAppCredentials({ ...state.appSessionOptions, expectedAccountKey: state.accountKey })
+      : { accessToken: state.accessToken };
+    if (!credentials?.accessToken) throw new GatewayError("No matching credentials available to send to the Grok Bot backend.");
+    url = assertAllowedCredentialUrl(backendBase(), { kind: "backend" }) + "/aiserver.v1.GrokBotService/" + method;
+    options = {
+      method: "POST",
+      redirect: "error",
+      signal: gatewayDeadline(),
+      headers: {
+        ...ensureSandboxHeaders(credentials.accessToken),
+        "x-cursor-client-os": process.platform,
+        "x-cursor-client-source": "sand-desktop",
+        "x-ghost-mode": "true",
+        ...(credentials.teamId === undefined ? {} : { "x-cursor-team-id": credentials.teamId }),
+      },
+      body: JSON.stringify({
+        agentId: body.agentId, messageId: body.clientNonce, text: body.prompt,
+        sentAtMs: String(Date.now()), source: "GROK_BOT_CLIENT_SURFACE_DESKTOP",
+        ...(body.replyToId ? { replyToId: body.replyToId } : {}),
+      }),
+    };
+    if (state.accountKey && grokBotActiveAccountKey(state.appSessionOptions) !== state.accountKey) {
+      throw new GatewayError("Grok Bot active account changed before sending; submission refused.");
+    }
+    assertGatewayActive(signal);
+  } catch (error) {
+    throw Object.assign(new GatewayError(redactSecrets(error instanceof Error ? error.message : String(error)), { method }), {
+      delivery: "rejected", ...(error?.reason ? { reason: error.reason } : {}),
+    });
+  }
+  const res = await fetch(url, options);
+  const data = await readJson(res);
+  if (!res.ok) {
+    const detail = data?.message || data?.error || data?.raw || res.statusText;
+    const error = new GatewayError(method + " failed: " + res.status + " " + redactSecrets(String(detail).slice(0, 300)), { status: res.status, method });
+    if (res.status === 408 || res.status === 499) error.delivery = "unknown";
+    throw error;
+  }
+  const parsed = backendSendResponse.safeParse(data);
+  if (!parsed.success) return {};
+  const { delivery, refusal } = parsed.data;
+  if (delivery === 4 || delivery === "GROK_BOT_USER_MESSAGE_DELIVERY_REFUSED") {
+    throw Object.assign(new GatewayError(method + " refused: " + redactSecrets((refusal?.message || "refused").slice(0, 300)), { method }), { delivery: "rejected" });
+  }
+  const accepted = !refusal && [1, 2, 3,
+    "GROK_BOT_USER_MESSAGE_DELIVERY_ACCEPTED_BOX",
+    "GROK_BOT_USER_MESSAGE_DELIVERY_ACCEPTED_TEMPORAL",
+    "GROK_BOT_USER_MESSAGE_DELIVERY_DUPLICATE",
+  ].includes(delivery);
+  return accepted ? { accepted: true } : {};
+}
+
 export async function sendPrompt(session, ref, prompt, extra = {}) {
   assertGatewayActive(extra.signal);
   const rec = await resolveRef(session, ref, { signal: extra.signal });
@@ -500,7 +562,10 @@ export async function sendPrompt(session, ref, prompt, extra = {}) {
   if (extra.replyToId) body.replyToId = extra.replyToId;
   let data;
   try {
-    data = await gatewayCall(session, "sendPrompt", body, { signal: extra.signal });
+    const state = reconnectStates.get(session);
+    data = state
+      ? await backendSendPrompt(state, body, extra.signal)
+      : await gatewayCall(session, "sendPrompt", body, { signal: extra.signal });
   } catch (err) {
     // Delivery states: the server answered no (rejected) vs the request may have landed (unknown).
     // Never retry an unknown delivery blindly; read the thread first.
@@ -517,7 +582,7 @@ export async function sendPrompt(session, ref, prompt, extra = {}) {
   // Current Grok Bot gateways answer `{ accepted: true }` without a messageId. A bare flag is not a
   // receipt, so look for our clientNonce in the transcript tail and use that entry's id instead.
   if (!messageId && data && typeof data === "object" && data.accepted === true) {
-    messageId = await transcriptEntryIdForNonce(session, rec.id, body.clientNonce, extra.signal);
+    messageId = await transcriptEntryIdForNonce(session, rec.id, body.clientNonce);
   }
   // Only a confirmed receipt counts as accepted; anything else is unknown, never a silent accept.
   // ponytail: full send/execution correlation envelope stays in #37.
@@ -525,9 +590,9 @@ export async function sendPrompt(session, ref, prompt, extra = {}) {
 }
 
 // Best effort: any failure leaves the send `unknown` rather than throwing after the prompt left.
-async function transcriptEntryIdForNonce(session, agentId, clientNonce, signal) {
+async function transcriptEntryIdForNonce(session, agentId, clientNonce) {
   try {
-    const data = await gatewayCall(session, "getAgentTranscriptTail", { id: agentId, limit: 20 }, { signal });
+    const data = await gatewayCall(session, "getAgentTranscriptTail", { id: agentId, limit: 20 });
     const entries = data && Array.isArray(data.entries) ? data.entries : [];
     const hit = entries.find((e) => e && e.clientNonce === clientNonce && typeof e.id === "string" && e.id);
     return hit ? hit.id : null;

@@ -29567,6 +29567,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
     },
     "./src/core/gateway.js" (__unused_rspack___webpack_module__, __webpack_exports__, __webpack_require__) {
         var node_crypto__rspack_import_0 = __webpack_require__("node:crypto");
+        var zod__rspack_import_6 = __webpack_require__("./node_modules/zod/v4/classic/schemas.js");
         var _headers_js__rspack_import_1 = __webpack_require__("./src/core/headers.js");
         var _app_session_js__rspack_import_2 = __webpack_require__("./src/core/app-session.js");
         var _store_js__rspack_import_3 = __webpack_require__("./src/core/store.js");
@@ -29589,6 +29590,15 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             "getAgentThread"
         ]);
         const reconnectStates = new WeakMap();
+        const backendSendResponse = zod__rspack_import_6.Ikc({
+            delivery: zod__rspack_import_6.KCZ([
+                zod__rspack_import_6.aig().int(),
+                zod__rspack_import_6.YjP()
+            ]).optional(),
+            refusal: zod__rspack_import_6.Ikc({
+                message: zod__rspack_import_6.YjP().optional()
+            }).optional()
+        });
         function assertGatewayActive(signal) {
             if (signal?.aborted) {
                 const error = new GatewayError("Gateway submission cancelled before transmission");
@@ -30121,6 +30131,91 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             const next = group.memberIds.filter((id)=>id !== member.id);
             return setGroupMembers(session, group.id, next);
         }
+        async function backendSendPrompt(state, body, signal) {
+            const method = "SendGrokBotUserMessage";
+            let url, options;
+            try {
+                const credentials = state.accountKey ? (0, _app_session_js__rspack_import_2.gF)({
+                    ...state.appSessionOptions,
+                    expectedAccountKey: state.accountKey
+                }) : {
+                    accessToken: state.accessToken
+                };
+                if (!credentials?.accessToken) throw new GatewayError("No matching credentials available to send to the Grok Bot backend.");
+                url = (0, _url_policy_js__rspack_import_4.Re)(backendBase(), {
+                    kind: "backend"
+                }) + "/aiserver.v1.GrokBotService/" + method;
+                options = {
+                    method: "POST",
+                    redirect: "error",
+                    signal: gatewayDeadline(),
+                    headers: {
+                        ...(0, _headers_js__rspack_import_1._6)(credentials.accessToken),
+                        "x-cursor-client-os": process.platform,
+                        "x-cursor-client-source": "sand-desktop",
+                        "x-ghost-mode": "true",
+                        ...credentials.teamId === undefined ? {} : {
+                            "x-cursor-team-id": credentials.teamId
+                        }
+                    },
+                    body: JSON.stringify({
+                        agentId: body.agentId,
+                        messageId: body.clientNonce,
+                        text: body.prompt,
+                        sentAtMs: String(Date.now()),
+                        source: "GROK_BOT_CLIENT_SURFACE_DESKTOP",
+                        ...body.replyToId ? {
+                            replyToId: body.replyToId
+                        } : {}
+                    })
+                };
+                if (state.accountKey && (0, _app_session_js__rspack_import_2.B3)(state.appSessionOptions) !== state.accountKey) {
+                    throw new GatewayError("Grok Bot active account changed before sending; submission refused.");
+                }
+                assertGatewayActive(signal);
+            } catch (error) {
+                throw Object.assign(new GatewayError((0, _url_policy_js__rspack_import_4.fp)(error instanceof Error ? error.message : String(error)), {
+                    method
+                }), {
+                    delivery: "rejected",
+                    ...error?.reason ? {
+                        reason: error.reason
+                    } : {}
+                });
+            }
+            const res = await fetch(url, options);
+            const data = await readJson(res);
+            if (!res.ok) {
+                const detail = data?.message || data?.error || data?.raw || res.statusText;
+                const error = new GatewayError(method + " failed: " + res.status + " " + (0, _url_policy_js__rspack_import_4.fp)(String(detail).slice(0, 300)), {
+                    status: res.status,
+                    method
+                });
+                if (res.status === 408 || res.status === 499) error.delivery = "unknown";
+                throw error;
+            }
+            const parsed = backendSendResponse.safeParse(data);
+            if (!parsed.success) return {};
+            const { delivery, refusal } = parsed.data;
+            if (delivery === 4 || delivery === "GROK_BOT_USER_MESSAGE_DELIVERY_REFUSED") {
+                throw Object.assign(new GatewayError(method + " refused: " + (0, _url_policy_js__rspack_import_4.fp)((refusal?.message || "refused").slice(0, 300)), {
+                    method
+                }), {
+                    delivery: "rejected"
+                });
+            }
+            const accepted = !refusal && [
+                1,
+                2,
+                3,
+                "GROK_BOT_USER_MESSAGE_DELIVERY_ACCEPTED_BOX",
+                "GROK_BOT_USER_MESSAGE_DELIVERY_ACCEPTED_TEMPORAL",
+                "GROK_BOT_USER_MESSAGE_DELIVERY_DUPLICATE"
+            ].includes(delivery);
+            return accepted ? {
+                accepted: true
+            } : {};
+        }
         async function sendPrompt(session, ref, prompt, extra = {}) {
             assertGatewayActive(extra.signal);
             const rec = await resolveRef(session, ref, {
@@ -30134,7 +30229,8 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             if (extra.replyToId) body.replyToId = extra.replyToId;
             let data;
             try {
-                data = await gatewayCall(session, "sendPrompt", body, {
+                const state = reconnectStates.get(session);
+                data = state ? await backendSendPrompt(state, body, extra.signal) : await gatewayCall(session, "sendPrompt", body, {
                     signal: extra.signal
                 });
             } catch (err) {
@@ -30151,7 +30247,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             }
             let messageId = data && typeof data === "object" && typeof data.messageId === "string" ? data.messageId : null;
             if (!messageId && data && typeof data === "object" && data.accepted === true) {
-                messageId = await transcriptEntryIdForNonce(session, rec.id, body.clientNonce, extra.signal);
+                messageId = await transcriptEntryIdForNonce(session, rec.id, body.clientNonce);
             }
             return {
                 target: rec,
@@ -30162,13 +30258,11 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                 } : {}
             };
         }
-        async function transcriptEntryIdForNonce(session, agentId, clientNonce, signal) {
+        async function transcriptEntryIdForNonce(session, agentId, clientNonce) {
             try {
                 const data = await gatewayCall(session, "getAgentTranscriptTail", {
                     id: agentId,
                     limit: 20
-                }, {
-                    signal
                 });
                 const entries = data && Array.isArray(data.entries) ? data.entries : [];
                 const hit = entries.find((e)=>e && e.clientNonce === clientNonce && typeof e.id === "string" && e.id);

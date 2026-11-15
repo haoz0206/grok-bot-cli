@@ -53,13 +53,17 @@ async function fixture(t, kind, phase) {
           { id: "target-b", name: "B" },
         ],
       };
-    } else if (req.url === "/api/sendPrompt") {
+    } else if (req.url === "/api/sendPrompt" || req.url === "/aiserver.v1.GrokBotService/SendGrokBotUserMessage") {
       prompts.push(body);
       if (!held && phase.startsWith("written") && sending()) await hold();
       response =
         phase === "written-unknown" && body.agentId === "target-a"
           ? {}
-          : { messageId: `message-${prompts.length}` };
+          : req.url === "/api/sendPrompt" ? { messageId: `message-${prompts.length}` } : { delivery: 2 };
+    } else if (req.url === "/api/getAgentTranscriptTail") {
+      response = { entries: prompts.flatMap((prompt, index) =>
+        prompt.agentId === body.id && prompt.messageId ? [{ id: `message-${index + 1}`, clientNonce: prompt.messageId }] : []),
+      };
     } else response = { entries: [] };
     res.setHeader("content-type", "application/json");
     res.end(JSON.stringify(response));
