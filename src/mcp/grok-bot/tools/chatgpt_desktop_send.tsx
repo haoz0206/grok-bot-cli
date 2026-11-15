@@ -17,7 +17,7 @@ export default defineTool(
     annotations: { readOnlyHint: false },
     inputSchema,
     resultSchema,
-    render: { maxElapsedMs: 180000 },
+    render: { maxElapsedMs: 660000 },
     inputJsonSchema: {
       type: 'object',
       additionalProperties: false,

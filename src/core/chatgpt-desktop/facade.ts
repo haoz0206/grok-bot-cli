@@ -7,7 +7,6 @@ import {
   appServerUnarchiveThread,
   appServerSearchThreads,
   appServerStatusProbe,
-  discoverModelProviders,
 } from './app-server-fallback.js';
 import { ArchivedThreadError, CdpUnreachableError, NotImplementedError, RemoteThreadNotLoadedError } from './errors.js';
 import { resolveCdpPort } from './loopback.js';
@@ -41,7 +40,6 @@ export type ChatGptDesktopFallbacks = {
   statusProbe: typeof appServerStatusProbe;
   listRemoteThreads?: typeof listRemoteThreadsFromState;
   listHosts?: typeof listDiscoveredHosts;
-  discoverModelProviders?: typeof discoverModelProviders;
 };
 
 const defaultFallbacks: ChatGptDesktopFallbacks = {
@@ -52,7 +50,6 @@ const defaultFallbacks: ChatGptDesktopFallbacks = {
   statusProbe: appServerStatusProbe,
   listRemoteThreads: listRemoteThreadsFromState,
   listHosts: listDiscoveredHosts,
-  discoverModelProviders,
 };
 
 const MERGED_LIST_CURSOR = 'desktop-merged-list-v1:';
@@ -65,7 +62,14 @@ type ListSnapshot = {
   rows: readonly ChatGptDesktopThread[];
   backend: ListThreadsResult['backend'];
   warnings: readonly string[];
-};
+} & ({
+  kind: 'list';
+  appSucceeded: boolean;
+  appComplete: boolean;
+  reachable: boolean;
+  cdpHasRows: boolean;
+  modelProviders: readonly string[];
+} | { kind: 'search' });
 
 export type ListThreadsOptions = {
   limit?: number;
@@ -156,6 +160,9 @@ export class ChatGptDesktopFacade implements ChatGptDesktopAdapter {
     } else {
       snapshot = await this.#buildListSnapshot(options, filters);
     }
+    if (snapshot.kind === 'list' && !snapshot.reachable) {
+      throw new CdpUnreachableError(snapshot.warnings[0] ?? 'ChatGPT Desktop listThreads: CDP and app-server unreachable');
+    }
     return this.#pageSnapshot(snapshot, offset, limit, options, MERGED_LIST_CURSOR);
   }
 
@@ -172,7 +179,7 @@ export class ChatGptDesktopFacade implements ChatGptDesktopAdapter {
       ...(options.groupBy === 'host' ? { groupBy: 'host' as const } : {}),
     };
     for (const source of snapshot.rows.slice(offset, offset + limit)) {
-      let row = source;
+      let row = compactThreadRow(source);
       const candidate = [...rows, row];
       const probe = { ...base, threads: candidate, nextCursor: prefix,
         ...(options.groupBy === 'host' ? { groups: groupThreadsByHost(candidate) } : {}),
@@ -202,7 +209,7 @@ export class ChatGptDesktopFacade implements ChatGptDesktopAdapter {
       ...(warnings.length ? { warnings } : {}) };
   }
 
-  async #buildListSnapshot(options: ListThreadsOptions, filters: string): Promise<ListSnapshot> {
+  async #buildListSnapshot(options: ListThreadsOptions, filters: string): Promise<Extract<ListSnapshot, { kind: 'list' }>> {
     const appRows: ChatGptDesktopThread[] = [];
     const warnings: string[] = [];
     let appCursor: string | undefined;
@@ -211,8 +218,8 @@ export class ChatGptDesktopFacade implements ChatGptDesktopAdapter {
     const modelProviders = modelProvidersFromFilter(options.modelProvider);
     let appSucceeded = false;
     try {
-      for (let page = 0; page < 400; page++) {
-        const out = await this.#fallbacks.listThreads({ limit: 200, cursor: appCursor, modelProviders });
+      for (let page = 0; page < 3200; page++) {
+        const out = await this.#fallbacks.listThreads({ limit: 25, cursor: appCursor, modelProviders });
         appSucceeded = true;
         appRows.push(...out.threads);
         if (out.warnings) warnings.push(...out.warnings);
@@ -221,7 +228,7 @@ export class ChatGptDesktopFacade implements ChatGptDesktopAdapter {
         seenCursors.add(out.nextCursor);
         appCursor = out.nextCursor;
       }
-      if (!appComplete) warnings.push('App-server inventory stopped after 400 pages');
+      if (!appComplete) warnings.push('App-server inventory stopped after 3200 pages');
     } catch (error) {
       warnings.push(`App-server list failed: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -230,12 +237,10 @@ export class ChatGptDesktopFacade implements ChatGptDesktopAdapter {
     try {
       await this.#ensureCdp();
       cdpList = await this.#cdp.listThreads({ limit: 200 });
+      if (cdpList.warnings) warnings.push(...cdpList.warnings);
     } catch (error) {
       if (isCdpFailure(error)) this.#cdpConnected = false;
       else warnings.push(`CDP list failed: ${error instanceof Error ? error.message : String(error)}`);
-    }
-    if (!appRows.length && !cdpList && !remotes.length) {
-      throw new CdpUnreachableError(warnings[0] ?? 'ChatGPT Desktop listThreads: CDP and app-server unreachable');
     }
     const appList: ListThreadsResult = { backend: 'app-server', limit: appRows.length, threads: appRows };
     const base = appSucceeded
@@ -252,137 +257,63 @@ export class ChatGptDesktopFacade implements ChatGptDesktopAdapter {
     rows.sort(compareDesktopThreads);
     const fingerprint = createHash('sha256').update(JSON.stringify({ filters, port: this.#port,
       rows: rows.map((row) => [row.threadId, row.updatedAt, row.location, row.hostId]) })).digest('base64url');
-    const snapshot: ListSnapshot = { fingerprint, port: this.#port, filters, createdAt: Date.now(),
-      rows, backend: merged.backend, warnings };
+    const snapshot: Extract<ListSnapshot, { kind: 'list' }> = {
+      kind: 'list', fingerprint, port: this.#port, filters, createdAt: Date.now(),
+      rows, backend: merged.backend, warnings, appSucceeded, appComplete,
+      reachable: appSucceeded || cdpList !== null || remotes.length > 0, cdpHasRows: Boolean(cdpList?.threads.length),
+      modelProviders: [...new Set([...appRows, ...rows].map((thread) => thread.modelProvider)
+        .filter((value): value is string => Boolean(value)))].sort(),
+    };
     for (const [key, value] of this.#listSnapshots) {
       if (Date.now() - value.createdAt > 15 * 60_000 || this.#listSnapshots.size >= 8) this.#listSnapshots.delete(key);
     }
-    this.#listSnapshots.set(fingerprint, snapshot);
+    if (snapshot.reachable) this.#listSnapshots.set(fingerprint, snapshot);
     return snapshot;
   }
 
   async listHosts(): Promise<ListHostsResult> {
-    const remotes = this.#listRemotes();
-    const cdpList = typeof this.#cdp.listThreads === 'function'
-      ? await this.#tryCdpList({ limit: 200 }) : null;
-    const cdpRows = cdpList?.threads ?? [];
-    let localThreadCount = 0;
-    let appSucceeded = false;
-    try {
-      const local = await this.#fallbacks.listThreads({ limit: 25, modelProviders: [] });
-      appSucceeded = true;
-      localThreadCount = local.threads.length;
-    } catch {
-      localThreadCount = 0;
+    const filters = JSON.stringify({ host: 'all', modelProvider: null, project: null, groupBy: null });
+    const cached = [...this.#listSnapshots.values()].find((snapshot) => snapshot.kind === 'list'
+      && snapshot.port === this.#port && snapshot.filters === filters && Date.now() - snapshot.createdAt < 15 * 60_000);
+    const inventory = cached?.kind === 'list' ? cached : await this.#buildListSnapshot({}, filters);
+    const counts = new Map<string, number>();
+    for (const thread of inventory.rows) {
+      const hostId = thread.location === 'remote' ? thread.hostId || 'unknown-remote' : 'local';
+      counts.set(hostId, (counts.get(hostId) ?? 0) + 1);
     }
     const listHosts = this.#fallbacks.listHosts ?? listDiscoveredHosts;
-    const fromState = listHosts(process.env, { localThreadCount });
+    const fromState = listHosts(process.env, { localThreadCount: counts.get('local') ?? 0 });
     const byId = new Map(fromState.map((host) => [host.hostId, { ...host }]));
-
-    // Ensure every host seen in merged remotes is present (tests / custom
-    // listRemoteThreads may supply rows without a matching global-state file).
-    for (const thread of remotes) {
-      const existing = byId.get(thread.hostId);
-      if (existing) {
-        byId.set(thread.hostId, {
-          ...existing,
-          hostName: existing.hostName ?? thread.hostName,
-        });
-      } else {
-        byId.set(thread.hostId, {
-          hostId: thread.hostId,
-          hostName: thread.hostName,
-          location: 'remote',
-          threadCount: 0,
-        });
-      }
-    }
-
-    for (const thread of cdpRows) {
-      if (thread.location !== 'remote' || !thread.hostId) continue;
-      if (!byId.has(thread.hostId)) byId.set(thread.hostId, {
-        hostId: thread.hostId, hostName: thread.hostName ?? null, location: 'remote', threadCount: 0,
+    for (const thread of inventory.rows) {
+      const location = thread.location ?? 'local';
+      const hostId = location === 'remote' ? thread.hostId || 'unknown-remote' : 'local';
+      const existing = byId.get(hostId);
+      byId.set(hostId, {
+        hostId, hostName: existing?.hostName ?? thread.hostName ?? (location === 'local' ? 'local' : null),
+        location, threadCount: counts.get(hostId) ?? 0,
       });
     }
-
-    const hostsSource = 'local+remote-thread-summaries-v3+managed-connections'
-      + (cdpRows.length ? '+cdp' : '');
-
-    // Recount remotes from the parsed summary rows for accuracy.
-    const remoteCounts = new Map<string, number>();
-    const remoteInventory = finalizeThreadList({
-      backend: cdpRows.length ? 'cdp' : 'remote-state', limit: 10_000,
-      threads: cdpRows.filter((thread) => thread.location === 'remote'),
-    }, { limit: 10_000, remotes });
-    for (const thread of remoteInventory.threads) {
-      if (thread.hostId) remoteCounts.set(thread.hostId, (remoteCounts.get(thread.hostId) ?? 0) + 1);
-    }
-    const withCounts = [...byId.values()]
-      .map((host) =>
-        host.hostId === 'local'
-          ? { ...host, threadCount: localThreadCount }
-          : { ...host, threadCount: remoteCounts.get(host.hostId) ?? host.threadCount },
-      )
-      .sort((a, b) => {
-        if (a.hostId === 'local') return -1;
-        if (b.hostId === 'local') return 1;
-        return a.hostId.localeCompare(b.hostId);
-      });
-
-    let modelProviders: string[] = [];
-    let modelProvidersSource = 'thread/list-distinct';
-    const warnings: string[] = [];
-    try {
-      const discover = this.#fallbacks.discoverModelProviders ?? discoverModelProviders;
-      const discovered = await discover();
-      modelProviders = [...discovered.providers];
-      modelProvidersSource = discovered.source;
-      if (typeof discovered.threadCount === 'number') localThreadCount = discovered.threadCount;
-      if (discovered.complete === false) warnings.push('Provider discovery stopped before the final app-server page');
-    } catch (error) {
-      warnings.push(`Model provider discovery failed: ${error instanceof Error ? error.message : String(error)}`);
-      modelProviders = [...new Set(
-        remotes
-          .map((thread) => thread.modelProvider)
-          .filter((value): value is string => typeof value === 'string' && Boolean(value)),
-      )].sort();
-      modelProvidersSource = 'remote-summaries-distinct';
-    }
-    modelProviders = [...new Set([
-      ...modelProviders,
-      ...remotes.map((thread) => thread.modelProvider).filter((value): value is string => Boolean(value)),
-    ])].sort();
-    let inventoryCounts: Map<string, number> | null = null;
-    try {
-      const filters = JSON.stringify({ host: 'all', modelProvider: null, project: null, groupBy: null });
-      const cached = [...this.#listSnapshots.values()].find((snapshot) =>
-        snapshot.port === this.#port && snapshot.filters === filters && Date.now() - snapshot.createdAt < 15 * 60_000);
-      const inventory = cached ?? await this.#buildListSnapshot({}, filters);
-      inventoryCounts = new Map();
-      for (const thread of inventory.rows) {
-        const hostId = thread.location === 'remote' ? thread.hostId ?? 'unknown-remote' : 'local';
-        inventoryCounts.set(hostId, (inventoryCounts.get(hostId) ?? 0) + 1);
-      }
-      warnings.push(...inventory.warnings);
-    } catch (error) {
-      warnings.push(`Merged inventory count failed: ${error instanceof Error ? error.message : String(error)}`);
+    const hosts = [...byId.values()].map((host) => {
+      const counted = { ...host, threadCount: counts.get(host.hostId) ?? host.threadCount };
+      if (!counted.hostName) return counted;
+      const name = compactThreadTitle(counted.hostName);
+      return { ...counted, hostName: name.title,
+        ...(name.titleTruncated ? { hostNameTruncated: true } : {}) };
+    }).sort((a, b) => {
+      if (a.hostId === 'local') return -1;
+      if (b.hostId === 'local') return 1;
+      return a.hostId.localeCompare(b.hostId);
+    });
+    const warnings = [...inventory.warnings];
+    if (inventory.appSucceeded && !inventory.appComplete) {
+      warnings.push('Provider discovery stopped before the final app-server page');
     }
     return {
-      hosts: withCounts.map((host) => {
-        const counted = { ...host, threadCount: inventoryCounts?.get(host.hostId)
-          ?? (host.hostId === 'local' ? localThreadCount : host.threadCount) };
-        if (!counted.hostName) return counted;
-        const name = compactThreadTitle(counted.hostName);
-        return { ...counted, hostName: name.title,
-          ...(name.titleTruncated ? { hostNameTruncated: true } : {}) };
-      }),
-      hostsSource,
-      modelProviders,
-      modelProvidersSource,
-      backend: appSucceeded
-        ? (cdpRows.length ? (remotes.length ? 'app-server+cdp+remote-state' : 'app-server+cdp')
-          : (remotes.length ? 'app-server+remote-state' : 'app-server'))
-        : (cdpRows.length ? (remotes.length ? 'cdp+remote-state' : 'cdp') : 'remote-state'),
+      hosts,
+      hostsSource: 'local+remote-thread-summaries-v3+managed-connections' + (inventory.cdpHasRows ? '+cdp' : ''),
+      modelProviders: inventory.modelProviders,
+      modelProvidersSource: inventory.appSucceeded ? 'thread/list-distinct' : 'remote-summaries-distinct',
+      backend: inventory.backend,
       ...(warnings.length ? { warnings } : {}),
     };
   }
@@ -458,7 +389,7 @@ export class ChatGptDesktopFacade implements ChatGptDesktopAdapter {
     rows.sort(compareDesktopThreads);
     const fingerprint = createHash('sha256').update(JSON.stringify({ filters, port: this.#port,
       rows: rows.map((row) => [row.threadId, row.updatedAt, row.location, row.hostId]) })).digest('base64url');
-    const snapshot: ListSnapshot = { fingerprint, port: this.#port, filters, createdAt: Date.now(),
+    const snapshot: ListSnapshot = { kind: 'search', fingerprint, port: this.#port, filters, createdAt: Date.now(),
       rows, backend: merged.backend, warnings };
     for (const [key, value] of this.#listSnapshots) {
       if (Date.now() - value.createdAt > 15 * 60_000 || this.#listSnapshots.size >= 8) this.#listSnapshots.delete(key);
@@ -712,7 +643,7 @@ export function finalizeThreadList(
     if (!projectMatches(thread, project)) return false;
     return true;
   });
-  const limited = filtered.slice(0, limit).map(compactThreadRow);
+  const limited = filtered.slice(0, limit);
   const result: ListThreadsResult = {
     backend: remotes.length
       ? (base.backend === 'app-server+cdp' ? 'app-server+cdp+remote-state'

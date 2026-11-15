@@ -5,11 +5,12 @@ import { afterEach, expect, it, rstest } from '@rstest/core';
 import { findRemoteThreadHost } from '../../src/core/codex/remote-control.js';
 import { listDiscoveredHosts, listRemoteThreadsFromState } from '../../src/core/chatgpt-desktop/remote-threads.js';
 import { ChatGptDesktopFacade, finalizeThreadList } from '../../src/core/chatgpt-desktop/facade.js';
-import { appServerListThreads, appServerReadThread, appServerSearchThreads, discoverModelProviders } from '../../src/core/chatgpt-desktop/app-server-fallback.js';
+import { appServerListThreads, appServerReadThread, appServerSearchThreads } from '../../src/core/chatgpt-desktop/app-server-fallback.js';
 import { DESKTOP_RESULT_BUDGET_BYTES, serializedBytes } from '../../src/core/chatgpt-desktop/payload-budget.js';
 import { findLocalProject, resolveThreadProjects } from '../../src/core/chatgpt-desktop/project-state.js';
 import { ARCHIVED_THREAD_EXPRESSION, CLEAR_NEW_CHAT_PROJECT_EXPRESSION, CONVERSATION_ID_EXPRESSION, LOADING_TASK_GONE_EXPRESSION, navigateToThreadExpression, openThreadInDom, readTurnsFromDom, startNewChatExpression, startNewChatInDom, waitForLoadingTaskGone } from '../../src/core/chatgpt-desktop/cdp-dom.js';
 import { listThreadsOperation, listThreadsSchema, readThreadOperation, readThreadSchema, searchThreadsSchema, statusOperation } from '../../src/core/chatgpt-desktop/routes.js';
+import { CdpUnreachableError } from '../../src/core/chatgpt-desktop/errors.js';
 import { setChatGptDesktopAdapterForTests } from '../../src/core/chatgpt-desktop/facade.js';
 import type { ChatGptDesktopAdapter } from '../../src/core/chatgpt-desktop/adapter.js';
 
@@ -94,7 +95,6 @@ it('counts CDP-only remote rows in host discovery', async () => {
   } as unknown as ChatGptDesktopAdapter, 9222, {
     listThreads: async () => ({ backend: 'app-server', limit: 25, threads: [] }),
     listRemoteThreads: () => [], listHosts: () => [{ hostId: 'local', hostName: 'local', location: 'local', threadCount: 0 }],
-    discoverModelProviders: async () => ({ providers: [], source: 'thread/list-distinct', threadCount: 0, complete: true }),
   } as never);
   expect((await facade.listHosts()).hosts).toEqual(expect.arrayContaining([expect.objectContaining({ hostId: 'remote:dynamic', threadCount: 1 })]));
   expect((await facade.listHosts()).hosts.find((host) => host.hostId === 'local')?.threadCount).toBe(1);
@@ -110,7 +110,6 @@ it('uses the same deduplicated remote rows for host count and host-filtered list
     listThreads: async () => ({ backend: 'app-server', limit: 25, threads: [] }),
     listRemoteThreads: () => [row('shared'), row('state-only')],
     listHosts: () => [{ hostId: 'remote:one', hostName: 'host'.repeat(2000), location: 'remote', threadCount: 2 }],
-    discoverModelProviders: async () => ({ providers: [], source: 'thread/list-distinct', threadCount: 0, complete: true }),
   } as never);
   const hosts = await facade.listHosts();
   const listed = await facade.listThreads({ host: 'remote:one', limit: 100 });
@@ -119,25 +118,28 @@ it('uses the same deduplicated remote rows for host count and host-filtered list
   expect(listed.threads.map((thread) => thread.threadId).sort()).toEqual(['local:cdp-only', 'local:shared', 'local:state-only']);
 });
 
-it('surfaces provider discovery errors with the remote fallback', async () => {
-  const facade = new ChatGptDesktopFacade({} as ChatGptDesktopAdapter, 9222, {
-    listThreads: async () => ({ backend: 'app-server', limit: 25, threads: [] }),
-    listRemoteThreads: () => [], listHosts: () => [],
-    discoverModelProviders: async () => { throw new Error('frame too large'); },
+it('surfaces inventory errors with remote provider fallback', async () => {
+  const facade = new ChatGptDesktopFacade({ connect: async () => { throw new CdpUnreachableError('offline'); } } as never, 9222, {
+    listThreads: async () => { throw new Error('frame too large'); },
+    listRemoteThreads: () => [{ threadId: 'local:remote', title: 'remote', pinned: false, selected: false,
+      kind: 'remote', location: 'remote', hostId: 'remote', hostName: null, modelProvider: 'remote-provider' }],
+    listHosts: () => [],
   } as never);
-  expect((await facade.listHosts()).warnings).toEqual(expect.arrayContaining(['Model provider discovery failed: frame too large']));
+  const result = await facade.listHosts();
+  expect(result.warnings).toEqual(expect.arrayContaining(['App-server list failed: frame too large']));
+  expect(result.modelProviders).toEqual(['remote-provider']);
+  expect(result.modelProvidersSource).toBe('remote-summaries-distinct');
 });
 
-it('uses small app-server pages for provider discovery and search', async () => {
+it('uses small app-server pages for search', async () => {
   const bridge = await import('../../src/core/codex-bridge.js');
   const limits: number[] = [];
   rstest.spyOn(bridge, 'listCodexThreads').mockImplementation(async ({ limit, cursor } = {}) => {
     limits.push(limit!);
     return { limit: limit!, nextCursor: cursor ? null : 'more', threads: [{ id: cursor ? 'b' : 'a', name: cursor ? 'needle' : 'first', modelProvider: cursor ? 'second-provider' : 'first-provider' }] } as never;
   });
-  expect((await discoverModelProviders()).providers).toEqual(['first-provider', 'second-provider']);
   expect((await appServerSearchThreads({ query: 'needle' })).threads).toHaveLength(1);
-  expect(limits).toEqual([25, 25, 25, 25]);
+  expect(limits).toEqual([25, 25]);
 });
 
 it('pages full turn reads, extracts user content and completedAt, and keeps stable keys', async () => {
@@ -349,7 +351,6 @@ it('reports only CDP and remote state when app-server inventory fails', async ()
   } as unknown as ChatGptDesktopAdapter, 9222, {
     listThreads: async () => { throw new Error('offline'); },
     listRemoteThreads: () => [remote], listHosts: () => [],
-    discoverModelProviders: async () => ({ providers: [], source: 'thread/list-distinct', complete: true }),
   } as never);
   expect((await facade.listThreads()).backend).toBe('cdp+remote-state');
   expect((await facade.listHosts()).backend).toBe('cdp+remote-state');

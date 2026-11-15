@@ -173,38 +173,6 @@ export async function appServerSearchThreads({
     warnings: ['Search stopped after 400 app-server pages; continue with nextCursor'] };
 }
 
-export type ModelProvidersDiscovery = {
-  readonly providers: readonly string[];
-  readonly source: 'thread/list-distinct';
-  readonly threadCount?: number;
-  readonly complete?: boolean;
-};
-
-/** Discover provider IDs from the supported inventory, without guessing RPCs. */
-export async function discoverModelProviders(): Promise<ModelProvidersDiscovery> {
-  const providers = new Set<string>();
-  let threadCount = 0;
-  let cursor: string | undefined;
-  let complete = false;
-  for (let page = 0; page < 400; page++) {
-    const out = await listCodexThreads({ limit: 25, cursor, modelProviders: [] });
-    threadCount += out.threads.length;
-    for (const thread of out.threads) {
-      if (typeof thread.modelProvider === 'string' && thread.modelProvider) {
-        providers.add(thread.modelProvider);
-      }
-    }
-    if (out.nextCursor == null || typeof out.nextCursor !== 'string') { complete = true; break; }
-    cursor = out.nextCursor;
-  }
-  return {
-    providers: [...providers].sort(),
-    source: 'thread/list-distinct',
-    threadCount,
-    complete,
-  };
-}
-
 export async function appServerReadThread({
   threadId,
   limit,

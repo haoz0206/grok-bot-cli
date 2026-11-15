@@ -168,14 +168,13 @@ it('keeps provider discovery dynamic and combines local and remote provider IDs'
   const host = `host-${crypto.randomUUID()}`;
   const remote = { ...row('local:remote'), location: 'remote' as const, hostId: host, hostName: host, modelProvider: provider };
   const facade = new ChatGptDesktopFacade({} as ChatGptDesktopAdapter, 9222, {
-    listThreads: async () => ({ threads: [], backend: 'app-server', limit: 50 }),
+    listThreads: async () => ({ threads: [{ ...row('local:local'), modelProvider: 'fixture-local-provider' }], backend: 'app-server', limit: 50 }),
     listRemoteThreads: () => [remote],
     listHosts: () => [],
-    discoverModelProviders: async () => ({ providers: ['fixture-local-provider'], source: 'thread/list-distinct' }),
   } as never);
   const result = await facade.listHosts();
   expect(result.hosts.map(h => h.hostId)).toContain(host);
-  expect(result.modelProviders).toContain(provider);
+  expect(result.modelProviders).toEqual(['fixture-local-provider', provider]);
 });
 
 it('bounds an unanswered CDP command and rejects pending commands on close', async () => {

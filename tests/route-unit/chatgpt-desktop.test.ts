@@ -1013,7 +1013,7 @@ describe('chatgpt-desktop app-server list/read/search + CDP-only send/wait', () 
               pinned: false,
               selected: false,
               kind: 'codex',
-              modelProvider: 'openai',
+              modelProvider: 'anthropic',
             },
           ],
         }),
@@ -1023,10 +1023,6 @@ describe('chatgpt-desktop app-server list/read/search + CDP-only send/wait', () 
         },
         statusProbe: async () => ({ reachable: true, mode: 'daemon' }),
         listRemoteThreads: () => remotes,
-        discoverModelProviders: async () => ({
-          providers: ['openai', 'anthropic'],
-          source: 'thread/list-distinct' as const,
-        }),
       },
     );
     const hostList = await facade.listHosts();
@@ -1163,10 +1159,6 @@ describe('chatgpt-desktop app-server list/read/search + CDP-only send/wait', () 
         },
         statusProbe: async () => ({ reachable: true, mode: 'daemon' }),
         listRemoteThreads: () => remotes,
-        discoverModelProviders: async () => ({
-          providers: ['brand-new-provider'],
-          source: 'thread/list-distinct' as const,
-        }),
         listHosts: (processEnv, opts) => listDiscoveredHosts(env, opts),
       },
     );

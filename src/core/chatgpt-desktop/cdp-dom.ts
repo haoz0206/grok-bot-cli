@@ -193,12 +193,10 @@ export const LIST_THREADS_EXPRESSION = `(() => {
     return undefined;
   };
   const rows = Array.from(document.querySelectorAll(${JSON.stringify(SELECTORS.threadRow)}));
-  const seen = new Set();
   const out = [];
   for (const row of rows) {
     const threadId = row.getAttribute(${JSON.stringify(ATTR.threadId)}) || '';
-    if (!threadId || seen.has(threadId)) continue;
-    seen.add(threadId);
+    if (!threadId) continue;
     const project = projectFor(row);
     out.push({
       threadId,
