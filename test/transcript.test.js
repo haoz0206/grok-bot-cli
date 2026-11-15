@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { formatTranscript } from "../src/core/format.js";
+import { formatRecord, formatTranscript, summarize } from "../src/core/format.js";
 import { entryText, sourceEntryId, transcriptDelta, transcriptEntries } from "../src/core/transcript.js";
 
 test("user messages read content, bot replies read message.content", () => {
@@ -92,4 +92,25 @@ test("transcript delta resets an unknown cursor with one bounded snapshot", () =
   assert.equal(delta.entryCount, 40);
   assert.deepEqual(delta.entries, entries.slice(-40));
   assert.equal(delta.cursor, "m45");
+});
+
+test("Grok human output strips terminal controls while preserving body newlines and raw data", () => {
+  const osc = "\x1b]52;c;RkFLRQ==\x07";
+  const csi = "\x1b[2J";
+  const rec = { id: `bot${osc}`, name: `Alpha${osc}`, description: `line 1\nline 2${csi}`, title: osc,
+    avatarShape: osc, avatarColor: csi, isGroup: true, memberIds: ["member"] };
+  const output = formatRecord(rec, [{ id: "member", name: `Member${osc}` }]);
+  assert.doesNotMatch(output, /[\x00-\x09\x0b-\x1f\x7f-\x9f]/);
+  assert.match(output, /line 1\nline 2/);
+  const entry = { id: `message${osc}`, role: `assistant${csi}`, text: `first${osc}\nsecond${csi}` };
+  const rendered = formatTranscript({ target: rec, transcript: { entries: [entry] } }, { full: true });
+  assert.doesNotMatch(rendered, /[\x00-\x09\x0b-\x1f\x7f-\x9f]/);
+  assert.match(rendered, /first\nsecond$/);
+  assert.equal(entry.text, `first${osc}\nsecond${csi}`);
+  assert.equal(summarize(rec).name, rec.name);
+});
+
+test("content array objects use safe conversion before joining", () => {
+  const entry = JSON.parse('{"content":[{"text":{"toString":null}},{"content":{"flag":true}}]}');
+  assert.equal(entryText(entry), '{"toString":null}\n{"flag":true}');
 });

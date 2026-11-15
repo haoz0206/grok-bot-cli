@@ -1,3 +1,4 @@
+import { updateAgent as gatewayUpdateAgent } from "../src/core/gateway.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -45,3 +46,26 @@ test("empty env JSON is a no-op", () => {
   assert.deepEqual(parseGatewayHeaders(""), {});
   assert.deepEqual(parseGatewayHeaders(undefined), {});
 });
+
+for (const patch of [{ notifyOnAgentUpdates: false }, { hiddenFromSidebar: true }]) {
+  test(`gateway ${Object.keys(patch)[0]} update never writes a stale profile`, async (t) => {
+    const agent = { id: "bot-1", name: "Alpha", description: "before" };
+    const calls = [];
+    t.mock.method(globalThis, "fetch", async (url, options) => {
+      const method = new URL(url).pathname.split("/").pop();
+      const body = JSON.parse(options.body);
+      calls.push(method);
+      if (method === "listAgents") {
+        const response = new Response(JSON.stringify({ agents: [agent] }));
+        agent.description = "external edit";
+        return response;
+      }
+      if (method === "updateAgent") Object.assign(agent, body.profile);
+      return new Response("{}");
+    });
+    const out = await gatewayUpdateAgent({ gatewayUrl: "http://127.0.0.1:1340", gatewayToken: "fake" }, agent.id, patch);
+    assert.equal(out.description, "external edit");
+    assert.equal(calls.includes("updateAgent"), false);
+    assert.equal(calls.filter((method) => method === "listAgents").length, 2);
+  });
+}

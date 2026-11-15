@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
+import * as store from "../src/core/store.js";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -136,3 +139,150 @@ test("update settings merge preserves extra keys", async () => {
     assert.equal(raw.prLinkStyle, "short");
   });
 });
+
+function rootFor(t) {
+  const root = fs.mkdtempSync(join(tmpdir(), "gbot-core-audit-"));
+  t.after(() => fs.rmSync(root, { recursive: true, force: true }));
+  return root;
+}
+
+function mockFs(t, name, replacement) {
+  t.mock.method(fs, name, replacement);
+  syncBuiltinESMExports();
+  t.after(() => {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  });
+}
+
+for (const invalid of ['{"operatorSetting":"KEEP"', "[]", "null", "42"]) {
+  test(`settings update refuses invalid old JSON ${invalid}`, (t) => {
+    const root = rootFor(t);
+    const bot = store.createAgent(root, { name: "Alpha" });
+    const path = join(bot.path, "settings.json");
+    fs.writeFileSync(path, invalid);
+    assert.equal(store.listRecords(root)[0].notifyOnAgentUpdates, true);
+    assert.throws(() => store.updateAgent(root, bot.id, { hiddenFromSidebar: true }));
+    assert.equal(fs.readFileSync(path, "utf8"), invalid);
+  });
+}
+
+test("settings update refuses read errors instead of replacing old data", (t) => {
+  const root = rootFor(t);
+  const bot = store.createAgent(root, { name: "Alpha" });
+  const path = join(bot.path, "settings.json");
+  const previous = fs.readFileSync(path, "utf8");
+  const read = fs.readFileSync;
+  mockFs(t, "readFileSync", function (target, ...args) {
+    if (target === path) throw Object.assign(new Error("synthetic permission denial"), { code: "EACCES" });
+    return read.call(this, target, ...args);
+  });
+  assert.throws(() => store.updateAgent(root, bot.id, { hiddenFromSidebar: true }), /permission denial/);
+  assert.equal(read(path, "utf8"), previous);
+});
+
+test("missing settings can be created by an update", (t) => {
+  const root = rootFor(t);
+  const bot = store.createAgent(root, { name: "Alpha" });
+  fs.unlinkSync(join(bot.path, "settings.json"));
+  assert.equal(store.updateAgent(root, bot.id, { hiddenFromSidebar: true }).hiddenFromSidebar, true);
+});
+
+for (const failure of ["partial write", "rename"]) {
+  for (const linked of [false, true]) {
+    test(`atomic profile update preserves original bytes after ${failure} failure, symlink=${linked}`, { skip: linked && process.platform === "win32" }, (t) => {
+      const root = rootFor(t);
+      const bot = store.createAgent(root, { name: "Alpha" });
+      const path = join(bot.path, "profile.json");
+      const previous = fs.readFileSync(path, "utf8");
+      if (linked) {
+        const actual = join(root, "operator-profile.json");
+        fs.renameSync(path, actual);
+        fs.symlinkSync(actual, path);
+      }
+      if (failure === "partial write") {
+        const write = fs.writeFileSync;
+        mockFs(t, "writeFileSync", function (target, value, ...args) {
+          write.call(this, target, value.slice(0, 10), ...args);
+          throw Object.assign(new Error("synthetic disk full"), { code: "ENOSPC" });
+        });
+      } else {
+        mockFs(t, "renameSync", () => { throw new Error("synthetic rename failure"); });
+      }
+      assert.throws(() => store.updateAgent(root, bot.id, { name: "Renamed" }), /synthetic/);
+      assert.equal(fs.readFileSync(path, "utf8"), previous);
+      assert.equal(fs.lstatSync(path).isSymbolicLink(), linked);
+      assert.equal(store.listRecords(root)[0].name, "Alpha");
+      assert.deepEqual(fs.readdirSync(bot.path).sort(), ["automations", "memory", "profile.json", "settings.json"]);
+    });
+  }
+}
+
+test("dangling settings symlink fails without replacing the link or creating its target", { skip: process.platform === "win32" }, (t) => {
+  const root = rootFor(t);
+  const bot = store.createAgent(root, { name: "Alpha" });
+  const path = join(bot.path, "settings.json");
+  const target = join(root, "missing-settings.json");
+  fs.unlinkSync(path);
+  fs.symlinkSync(target, path);
+  assert.throws(() => store.updateAgent(root, bot.id, { hiddenFromSidebar: true }), /ENOENT/);
+  assert.equal(fs.lstatSync(path).isSymbolicLink(), true);
+  assert.equal(fs.existsSync(target), false);
+});
+
+test("ownership preservation failure leaves the old profile untouched", { skip: process.platform === "win32" }, (t) => {
+  const root = rootFor(t);
+  const bot = store.createAgent(root, { name: "Alpha" });
+  const path = join(bot.path, "profile.json");
+  const previous = fs.readFileSync(path, "utf8");
+  const stat = fs.statSync;
+  mockFs(t, "statSync", function (target, ...args) {
+    const result = stat.call(this, target, ...args);
+    if (String(target).endsWith(".tmp")) result.uid += 1;
+    return result;
+  });
+  mockFs(t, "fchownSync", () => { throw new Error("synthetic ownership failure"); });
+  assert.throws(() => store.updateAgent(root, bot.id, { name: "Renamed" }), /ownership failure/);
+  assert.equal(fs.readFileSync(path, "utf8"), previous);
+  assert.equal(fs.readdirSync(bot.path).some(name => name.endsWith(".tmp")), false);
+});
+
+test("atomic update preserves file mode, ownership and a valid symlink", { skip: process.platform === "win32" }, (t) => {
+  const root = rootFor(t);
+  const bot = store.createAgent(root, { name: "Alpha" });
+  const path = join(bot.path, "profile.json");
+  const actual = join(root, "operator-profile.json");
+  fs.renameSync(path, actual);
+  fs.chmodSync(actual, 0o640);
+  const previous = fs.statSync(actual);
+  fs.symlinkSync(actual, path);
+  assert.equal(store.updateAgent(root, bot.id, { name: "Renamed" }).name, "Renamed");
+  assert.equal(fs.lstatSync(path).isSymbolicLink(), true);
+  assert.equal(JSON.parse(fs.readFileSync(actual, "utf8")).name, "Renamed");
+  const changed = fs.statSync(actual);
+  assert.equal(changed.mode & 0o7777, 0o640);
+  assert.equal(changed.uid, previous.uid);
+  assert.equal(changed.gid, previous.gid);
+});
+
+for (const operation of ["create", "set", "add", "remove"]) {
+  test(`file group ${operation} resolves all members from one records snapshot`, (t) => {
+    const root = rootFor(t);
+    const a = store.createAgent(root, { name: "Alpha" });
+    const b = store.createAgent(root, { name: "Beta" });
+    const c = store.createAgent(root, { name: "Gamma" });
+    const group = store.createGroup(root, { name: "Group", memberIds: [a.id, b.id] });
+    const read = fs.readdirSync;
+    let scans = 0;
+    mockFs(t, "readdirSync", function (path, ...args) {
+      if (path === root) scans += 1;
+      return read.call(this, path, ...args);
+    });
+    const result = operation === "create" ? store.createGroup(root, { name: "New group", memberIds: [a.id, c.id] })
+      : operation === "set" ? store.setGroupMembers(root, group.id, [a.id, c.id])
+      : operation === "add" ? store.addGroupMember(root, group.id, c.id)
+      : store.removeGroupMember(root, group.id, b.id);
+    assert.equal(scans, 1);
+    assert.deepEqual(result.memberIds, operation === "add" ? [a.id, b.id, c.id] : operation === "remove" ? [a.id] : [a.id, c.id]);
+  });
+}

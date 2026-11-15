@@ -30,7 +30,7 @@ function entryTextRaw(e) {
   if (Array.isArray(content)) {
     return content.map((part) => {
       if (typeof part === "string") return part;
-      if (part && typeof part === "object") return part.text || part.content || "";
+      if (part && typeof part === "object") return toSafeText(part.text || part.content || "");
       return "";
     }).filter(Boolean).join("\n");
   }

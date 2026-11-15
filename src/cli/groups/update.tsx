@@ -2,7 +2,7 @@ import { Agent } from '@agent-bundle/runtime';
 import type { CliRouteConfig, CliRouteProps } from 'agent-bundle';
 import { z } from 'zod';
 
-import { summarize } from '../../core/format.js';
+import { stripTerminalControls, summarize } from '../../core/format.js';
 import {
   agentSummarySchema,
   backendFlagsSchema,
@@ -45,7 +45,7 @@ export default async function groupsUpdate({ input }: CliRouteProps<typeof input
   const rec = await backend.updateAgent(ref, toUpdatePatch(fields));
   return (
     <Agent.Result value={summarize(rec)}>
-      <Agent.Text>{`Updated group ${rec.name} (${rec.id})`}</Agent.Text>
+      <Agent.Text>{stripTerminalControls(`Updated group ${rec.name} (${rec.id})`)}</Agent.Text>
     </Agent.Result>
   );
 }

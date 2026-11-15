@@ -2,7 +2,7 @@ import { Agent } from '@agent-bundle/runtime';
 import type { CliRouteConfig, CliRouteProps } from 'agent-bundle';
 import { z } from 'zod';
 
-import { summarize } from '../../core/format.js';
+import { stripTerminalControls, summarize } from '../../core/format.js';
 import { agentSummarySchema, backendFlagsSchema, openBackendFromInput } from '../_shared.js';
 
 export const config = {
@@ -29,7 +29,7 @@ export default async function botsDelete({ input }: CliRouteProps<typeof inputSc
   const rec = await backend.deleteAgent(input.ref);
   return (
     <Agent.Result value={summarize(rec)}>
-      <Agent.Text>{`Deleted ${rec.isGroup ? 'group' : 'bot'} ${rec.name} (${rec.id})`}</Agent.Text>
+      <Agent.Text>{stripTerminalControls(`Deleted ${rec.isGroup ? 'group' : 'bot'} ${rec.name} (${rec.id})`)}</Agent.Text>
     </Agent.Result>
   );
 }

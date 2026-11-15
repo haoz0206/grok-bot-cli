@@ -1,15 +1,22 @@
 import { randomUUID } from "node:crypto";
 import {
   existsSync,
+  closeSync,
+  fchmodSync,
+  fchownSync,
+  lstatSync,
   mkdirSync,
+  openSync,
   readdirSync,
   readFileSync,
+  realpathSync,
+  renameSync,
   rmSync,
   statSync,
   writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, basename, join } from "node:path";
 
 const GROUP_JSON_VERSION = 1;
 export const MAX_GROUP_MEMBERS = 6;
@@ -67,7 +74,36 @@ function readJson(path) {
 }
 
 function writeJson(path, value) {
-  writeFileSync(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+  const bytes = `${JSON.stringify(value, null, 2)}\n`;
+  let previous;
+  try {
+    previous = lstatSync(path);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+  if (previous) {
+    path = realpathSync(path);
+    previous = statSync(path);
+  }
+  const temporary = join(dirname(path), `.${basename(path)}.${randomUUID()}.tmp`);
+  const fd = openSync(temporary, "wx", previous ? 0o600 : 0o666);
+  try {
+    try {
+      writeFileSync(fd, bytes, "utf8");
+      if (previous) {
+        const created = statSync(temporary);
+        if (created.uid !== previous.uid || created.gid !== previous.gid) {
+          fchownSync(fd, previous.uid, previous.gid);
+        }
+        fchmodSync(fd, previous.mode & 0o7777);
+      }
+    } finally {
+      closeSync(fd);
+    }
+    renameSync(temporary, path);
+  } finally {
+    rmSync(temporary, { force: true });
+  }
 }
 
 function isUuid(value) {
@@ -112,7 +148,6 @@ export function resolveAgentsRoot(explicit) {
 
 function readProfile(dir) {
   const path = join(dir, PROFILE_FILE);
-  if (!existsSync(path)) return null;
   const raw = readJson(path);
   return {
     name: String(raw.name ?? ""),
@@ -136,17 +171,25 @@ function readGroup(dir) {
 
 function readRawSettings(dir) {
   const path = join(dir, SETTINGS_FILE);
-  if (!existsSync(path)) return {};
   try {
     const raw = readJson(path);
-    return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
-  } catch {
-    return {};
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      throw new StoreError(`Settings must be a JSON object: ${path}`);
+    }
+    return raw;
+  } catch (error) {
+    if (error.code === "ENOENT") return {};
+    throw error;
   }
 }
 
 function readSettings(dir) {
-  const raw = readRawSettings(dir);
+  let raw;
+  try {
+    raw = readRawSettings(dir);
+  } catch {
+    raw = {};
+  }
   return {
     notifyOnAgentUpdates: typeof raw.notifyOnAgentUpdates === "boolean" ? raw.notifyOnAgentUpdates : true,
     hiddenFromSidebar: typeof raw.hiddenFromSidebar === "boolean" ? raw.hiddenFromSidebar : false,
@@ -159,23 +202,30 @@ export function listRecords(root) {
   for (const entry of readdirSync(root, { withFileTypes: true })) {
     if (!entry.isDirectory() || !isUuid(entry.name)) continue;
     const dir = join(root, entry.name);
-    const profile = readProfile(dir);
-    if (!profile) continue;
-    const group = readGroup(dir);
-    out.push({
-      id: entry.name,
-      path: dir,
-      ...profile,
-      ...readSettings(dir),
-      isGroup: group != null,
-      memberIds: group?.memberIds ?? [],
-    });
+    if (!existsSync(join(dir, PROFILE_FILE))) continue;
+    out.push(readRecord(dir, entry.name));
   }
   return out.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }
 
+function readRecord(dir, id) {
+  const profile = readProfile(dir);
+  const group = readGroup(dir);
+  return {
+    id,
+    path: dir,
+    ...profile,
+    ...readSettings(dir),
+    isGroup: group != null,
+    memberIds: group?.memberIds ?? [],
+  };
+}
+
 export function resolveRef(root, ref) {
-  const records = listRecords(root);
+  return resolveFromList(listRecords(root), ref);
+}
+
+function resolveFromList(records, ref) {
   if (isUuid(ref)) {
     const exact = records.find((r) => r.id.toLowerCase() === ref.toLowerCase());
     if (!exact) throw new StoreError(`No bot or group with id ${ref}`);
@@ -230,14 +280,12 @@ function writeGroup(dir, memberIds) {
   });
 }
 
-function normalizeMemberIds(root, memberRefs) {
-  const records = listRecords(root);
-  const groups = new Set(records.filter((r) => r.isGroup).map((r) => r.id));
+function normalizeMemberIds(records, memberRefs) {
   const resolved = [];
   const seen = new Set();
   for (const ref of memberRefs) {
-    const rec = resolveRef(root, ref);
-    if (groups.has(rec.id)) {
+    const rec = resolveFromList(records, ref);
+    if (rec.isGroup) {
       throw new StoreError(`Cannot add group "${rec.name}" as a member. Nested groups are not allowed.`);
     }
     if (seen.has(rec.id)) continue;
@@ -266,7 +314,7 @@ export function createAgent(root, input) {
     avatarColor: input.avatarColor ?? "",
   });
   writeSettings(dir);
-  return resolveRef(root, id);
+  return readRecord(dir, id);
 }
 
 export function updateAgent(root, ref, patch = {}) {
@@ -291,7 +339,7 @@ export function updateAgent(root, ref, patch = {}) {
     });
   }
   mergeSettings(rec.path, patch);
-  return resolveRef(root, rec.id);
+  return readRecord(rec.path, rec.id);
 }
 
 export function deleteAgent(root, ref) {
@@ -308,11 +356,12 @@ export function deleteAgent(root, ref) {
 }
 
 export function createGroup(root, input) {
-  const memberIds = normalizeMemberIds(root, input.memberIds ?? []);
+  const records = listRecords(root);
+  const memberIds = normalizeMemberIds(records, input.memberIds ?? []);
   if (memberIds.length === 0) {
     throw new StoreError("A group needs at least one existing member agent.");
   }
-  const existing = listRecords(root).find(
+  const existing = records.find(
     (r) =>
       r.isGroup &&
       r.memberIds.length === memberIds.length &&
@@ -327,27 +376,34 @@ export function createGroup(root, input) {
     avatarColor: input.avatarColor ?? "",
   });
   writeGroup(join(root, group.id), memberIds);
-  return resolveRef(root, group.id);
+  return readRecord(group.path, group.id);
 }
 
 export function setGroupMembers(root, groupRef, memberRefs) {
-  const group = resolveRef(root, groupRef);
+  const records = listRecords(root);
+  const group = resolveFromList(records, groupRef);
+  return setMembers(records, group, memberRefs);
+}
+
+function setMembers(records, group, memberRefs) {
   if (!group.isGroup) throw new StoreError(`"${group.name}" is a bot, not a group.`);
-  const memberIds = normalizeMemberIds(root, memberRefs);
+  const memberIds = normalizeMemberIds(records, memberRefs);
   if (memberIds.length === 0) {
     throw new StoreError("A group needs at least one existing member agent.");
   }
   writeGroup(group.path, memberIds);
-  return resolveRef(root, group.id);
+  return readRecord(group.path, group.id);
 }
 
 export function addGroupMember(root, groupRef, memberRef) {
-  const group = resolveRef(root, groupRef);
-  return setGroupMembers(root, group.id, [...group.memberIds, memberRef]);
+  const records = listRecords(root);
+  const group = resolveFromList(records, groupRef);
+  return setMembers(records, group, [...group.memberIds, memberRef]);
 }
 
 export function removeGroupMember(root, groupRef, memberRef) {
-  const group = resolveRef(root, groupRef);
-  const member = resolveRef(root, memberRef);
-  return setGroupMembers(root, group.id, group.memberIds.filter((id) => id !== member.id));
+  const records = listRecords(root);
+  const group = resolveFromList(records, groupRef);
+  const member = resolveFromList(records, memberRef);
+  return setMembers(records, group, group.memberIds.filter((id) => id !== member.id));
 }

@@ -1,12 +1,12 @@
 import { entryText, transcriptEntries } from "./transcript.js";
 
 /** Strip CSI/OSC and other C0/C1 controls so thread fields cannot drive the terminal. */
-function stripTerminalControls(text) {
+export function stripTerminalControls(text, keepNewlines = false) {
   return String(text)
     .replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "")
     .replace(/\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g, "")
     .replace(/\u001b./g, "")
-    .replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+    .replace(keepNewlines ? /[\u0000-\u0009\u000B-\u001F\u007F-\u009F]/g : /[\u0000-\u001F\u007F-\u009F]/g, "");
 }
 
 export function summarize(rec) {
@@ -42,22 +42,22 @@ export function formatRecord(rec, all) {
   if (rec.hiddenFromSidebar !== undefined) settings.push("hidden " + (rec.hiddenFromSidebar ? "on" : "off"));
   const settingsLine = settings.length ? "\n    " + settings.join(", ") : "";
   const extra = rec.isGroup ? "\n    members (" + rec.memberIds.length + "): " + (members || "(none)") : "";
-  return kind + "  " + rec.name + title + "\n    " + rec.id + desc + avatar + settingsLine + extra;
+  return stripTerminalControls(kind + "  " + rec.name + title + "\n    " + rec.id + desc + avatar + settingsLine + extra, true);
 }
 
 export function formatTranscript(out, { full = false } = {}) {
   const rec = out.target;
   const payload = out.transcript || out.thread || {};
   const entries = transcriptEntries(payload);
-  const header = (rec.isGroup ? "group" : "bot") + "  " + rec.name + "\n    " + rec.id;
+  const header = stripTerminalControls((rec.isGroup ? "group" : "bot") + "  " + rec.name + "\n    " + rec.id, true);
   if (!Array.isArray(entries) || entries.length === 0) {
     return header + "\n    (no messages)";
   }
   const lines = [header, ""];
   for (const e of entries) {
-    const role = e.role || e.kind || e.sender || e.type || "msg";
-    const text = entryText(e);
-    const id = e.id || "";
+    const role = stripTerminalControls(e.role || e.kind || e.sender || e.type || "msg");
+    const text = stripTerminalControls(entryText(e), true);
+    const id = stripTerminalControls(e.id || "");
     lines.push("[" + role + (id ? " " + id : "") + "] " + (full ? text : truncateCliText(text)));
   }
   return lines.join("\n");

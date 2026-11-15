@@ -2,7 +2,7 @@ import { Agent } from '@agent-bundle/runtime';
 import type { CliRouteConfig, CliRouteProps } from 'agent-bundle';
 import { z } from 'zod';
 
-import { summarize } from '../../core/format.js';
+import { stripTerminalControls, summarize } from '../../core/format.js';
 import { agentSummarySchema, backendFlagsSchema, openBackendFromInput } from '../_shared.js';
 
 export const config = {
@@ -31,7 +31,7 @@ export default async function groupsDelete({ input }: CliRouteProps<typeof input
   const deleted = await backend.deleteAgent(input.ref);
   return (
     <Agent.Result value={summarize(deleted)}>
-      <Agent.Text>{`Deleted group ${deleted.name} (${deleted.id})`}</Agent.Text>
+      <Agent.Text>{stripTerminalControls(`Deleted group ${deleted.name} (${deleted.id})`)}</Agent.Text>
     </Agent.Result>
   );
 }

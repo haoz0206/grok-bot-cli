@@ -335,14 +335,18 @@ export async function updateAgent(session, ref, patch = {}) {
   if (patch.name !== undefined && !String(patch.name).trim()) {
     throw new GatewayError("Name cannot be blank.");
   }
-  const profile = {
-    name: patch.name !== undefined ? String(patch.name).trim() : rec.name,
-    description: patch.description !== undefined ? String(patch.description) : rec.description,
-  };
-  if (patch.title !== undefined) profile.title = String(patch.title);
-  if (patch.avatarShape !== undefined) profile.avatarShape = assertAvatar("shape", patch.avatarShape, AVATAR_SHAPES);
-  if (patch.avatarColor !== undefined) profile.avatarColor = assertAvatar("color", patch.avatarColor, AVATAR_COLORS);
-  await gatewayCall(session, "updateAgent", { id: rec.id, profile });
+  const hasProfile = patch.name !== undefined || patch.description !== undefined || patch.title !== undefined
+    || patch.avatarShape !== undefined || patch.avatarColor !== undefined;
+  if (hasProfile) {
+    const profile = {
+      name: patch.name !== undefined ? String(patch.name).trim() : rec.name,
+      description: patch.description !== undefined ? String(patch.description) : rec.description,
+    };
+    if (patch.title !== undefined) profile.title = String(patch.title);
+    if (patch.avatarShape !== undefined) profile.avatarShape = assertAvatar("shape", patch.avatarShape, AVATAR_SHAPES);
+    if (patch.avatarColor !== undefined) profile.avatarColor = assertAvatar("color", patch.avatarColor, AVATAR_COLORS);
+    await gatewayCall(session, "updateAgent", { id: rec.id, profile });
+  }
   if (patch.notifyOnAgentUpdates !== undefined) {
     await gatewayCall(session, "setAgentNotifyOnUpdates", { id: rec.id, isEnabled: Boolean(patch.notifyOnAgentUpdates) });
   }
@@ -469,6 +473,10 @@ export async function setGroupMembers(session, groupRef, memberRefs) {
   const group = resolveFromList(records, groupRef);
   if (!group.isGroup) throw new GatewayError(`"${group.name}" is a bot, not a group.`);
   const memberAgentIds = normalizeMemberIds(records, memberRefs);
+  return setMembers(session, group, memberAgentIds);
+}
+
+async function setMembers(session, group, memberAgentIds) {
   const data = await gatewayCall(session, "setGroupMembers", {
     id: group.id,
     memberAgentIds,
@@ -482,7 +490,7 @@ export async function addGroupMember(session, groupRef, memberRef) {
   if (!group.isGroup) throw new GatewayError(`"${group.name}" is a bot, not a group.`);
   const member = resolveFromList(records, memberRef);
   const next = [...new Set([...group.memberIds, member.id])];
-  return setGroupMembers(session, group.id, next);
+  return setMembers(session, group, normalizeMemberIds(records, next));
 }
 
 export async function removeGroupMember(session, groupRef, memberRef) {
@@ -491,7 +499,7 @@ export async function removeGroupMember(session, groupRef, memberRef) {
   if (!group.isGroup) throw new GatewayError(`"${group.name}" is a bot, not a group.`);
   const member = resolveFromList(records, memberRef);
   const next = group.memberIds.filter((id) => id !== member.id);
-  return setGroupMembers(session, group.id, next);
+  return setMembers(session, group, normalizeMemberIds(records, next));
 }
 
 async function backendSendPrompt(state, body, signal) {

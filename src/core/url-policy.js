@@ -156,15 +156,25 @@ export function assertAllowedCredentialUrl(rawUrl, opts = {}) {
  */
 export function redactSecrets(text) {
   let s = String(text);
-  // Cookie headers first so a later Authorization pass cannot swallow them.
-  // Stop the value before the next header-shaped token on the same line.
   s = s.replace(
-    /(^|[\s,{;])((?:set-cookie|cookie)\s*[:=]\s*)([^\n;]+?)(?=\s+(?:set-cookie|cookie|authorization|proxy-authorization)\b|\s*$)/gi,
-    "$1$2<redacted>",
+    /((?:"(?:set-cookie|cookie)"|'(?:set-cookie|cookie)')\s*[:=]\s*)(["'])(?:\\.|(?!\2)[^\\\r\n])*\2/gi,
+    "$1$2<redacted>$2",
   );
+  // JSON values end at their quote; shell arguments can continue through adjacent chunks.
+  const cookieHeaders = new RegExp([
+    String.raw`(?<jsonPrefix>[:\[,]\s*)(?<jsonValue>"(?:\\(?:["\\/bfnrt]|u[0-9a-f]{4})|[^"\\\u0000-\u001f])*")`,
+    String.raw`(?<shellPrefix>(?:^|[^\s:\[,])[ \t]*)(?:'(?<single>(?:set-cookie|cookie)\s*[:=])[^'\r\n]*(?:'|(?=\r?$))|"(?<double>(?:set-cookie|cookie)\s*[:=])(?:\\.|[^"\\\r\n])*(?:"|(?=\r?$)))(?:'[^'\r\n]*'|"(?:\\.|[^"\\\r\n])*"|\\[^\r\n]|[^\s'"\\;&|<>()])*`,
+    String.raw`(?<headerPrefix>^|[\s,{;])(?<header>(?:set-cookie|cookie)\s*[:=])[^\r\n]*?(?=\s+(?:set-cookie|cookie|authorization|proxy-authorization)\s*:|\r?$)`,
+  ].join("|"), "gmi");
+  s = s.replace(cookieHeaders, (...args) => {
+    const { jsonPrefix, jsonValue, shellPrefix, single, double, headerPrefix, header } = args.at(-1);
+    if (jsonValue !== undefined) return jsonPrefix + JSON.stringify(redactSecrets(JSON.parse(jsonValue)));
+    if (shellPrefix !== undefined) return shellPrefix + (single ? `'${single} <redacted>'` : `"${double} <redacted>"`);
+    return headerPrefix + header + " <redacted>";
+  });
   // Scheme + credential only (e.g. "Basic abc", "Bearer xyz") — not the rest of the line.
   s = s.replace(
-    /(^|[\s,{;])((?:authorization|proxy-authorization)\s*[:=]\s*)(\S+(?:\s+\S+)?)/gi,
+    /(^|[\s,{;])((?:authorization|proxy-authorization)\s*[:=]\s*)(<redacted>|\S+(?:\s+\S+)?)/gi,
     "$1$2<redacted>",
   );
   s = s.replace(/Bearer\s+[A-Za-z0-9._+\/=-]+/gi, "Bearer <redacted>");

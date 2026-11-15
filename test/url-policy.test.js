@@ -1,3 +1,4 @@
+import { grokApprovalNotice } from "../src/core/grok-approvals.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
@@ -135,3 +136,92 @@ test("redacts bearer, basic, cookie, and token-like fields", () => {
   assert.doesNotMatch(out, /YWJjMTIz/);
   assert.doesNotMatch(out, /keepsecret/);
 });
+
+test("redaction removes every cookie value and preserves following diagnostics", () => {
+  const inputs = [
+    "Cookie: sid=FIRST_FAKE; refresh=SECOND_FAKE; login=THIRD_FAKE",
+    'Cookie: sid="FIRST_FAKE"; refresh=SECOND_FAKE',
+    "Cookie: sid=FIRST_FAKE; refresh=SECOND_FAKE\nStatus: failed",
+    "Cookie: sid=FIRST_FAKE; refresh=SECOND_FAKE Authorization: Basic THIRD_FAKE\nStatus: failed",
+    JSON.stringify({ cookie: "sid=FIRST_FAKE; refresh=SECOND_FAKE", status: "failed" }),
+    "curl -H 'Cookie: sid=FIRST_FAKE; refresh=SECOND_FAKE' --verbose",
+    'Set-Cookie: sid=FIRST_FAKE; Expires=Wed, 21 Oct 2030 07:28:00 GMT; Path=/\nStatus: failed',
+  ];
+  for (const input of inputs) {
+    const redacted = redactSecrets(input);
+    assert.doesNotMatch(redacted, /FIRST_FAKE|SECOND_FAKE|THIRD_FAKE/);
+    assert.equal(redactSecrets(redacted), redacted);
+    if (input.includes("Status: failed")) assert.match(redacted, /Status: failed/);
+    if (input.includes("--verbose")) assert.match(redacted, /--verbose/);
+    if (input.includes('"status"')) assert.match(redacted, /"status":"failed"/);
+  }
+});
+
+for (const name of ["authorization", "proxy-authorization", "cookie", "set-cookie"]) {
+  test(`cookie named ${name} does not end header redaction`, () => {
+    const input = `Cookie: sid=FIRST_FAKE; ${name}=SECOND_FAKE; third=THIRD_FAKE; fourth=FOURTH_FAKE`;
+    const redacted = redactSecrets(input);
+    assert.doesNotMatch(redacted, /FIRST_FAKE|SECOND_FAKE|THIRD_FAKE|FOURTH_FAKE/);
+    assert.equal(redactSecrets(redacted), redacted);
+  });
+}
+
+
+for (const command of [
+  String.raw`curl -H 'Cookie: sid=FIRST_FAKE'\''TAIL; refresh=SECOND_FAKE' --verbose`,
+  String.raw`curl -H 'Cookie: sid=FIRST_FAKE'"'"'TAIL; refresh=SECOND_FAKE' --verbose`,
+  String.raw`curl -H 'Cookie: sid=FIRST_FAKE''TAIL; refresh=SECOND_FAKE' --verbose`,
+  String.raw`curl -H "Cookie: sid=FIRST_FAKE"'TAIL; refresh=SECOND_FAKE' --verbose`,
+]) {
+  test(`redacts the complete concatenated cookie argument in ${command}`, () => {
+    const redacted = redactSecrets(command);
+    assert.doesNotMatch(redacted, /FIRST_FAKE|TAIL|SECOND_FAKE/);
+    assert.match(redacted, /^curl -H /);
+    assert.match(redacted, / --verbose$/);
+    assert.equal(redactSecrets(redacted), redacted);
+    const notice = grokApprovalNotice({
+      id: "card", kind: "send-message", message: {
+        type: "auto-review-approval", approval: { requestId: "approval", status: "pending", command },
+      },
+    }, "fixture-bot");
+    assert.doesNotMatch(notice, /FIRST_FAKE|TAIL|SECOND_FAKE/);
+    assert.match(notice, /--verbose/);
+  });
+}
+
+for (const diagnostic of [
+  { message: "Cookie: sid=FIRST_FAKE; refresh=SECOND_FAKE", status: "failed" },
+  { message: "Failure Cookie: sid=FIRST_FAKE; refresh=SECOND_FAKE", status: "failed" },
+  ["Cookie: sid=FIRST_FAKE; refresh=SECOND_FAKE", "Status: failed"],
+  { rows: [["Cookie: sid=FIRST_FAKE; refresh=SECOND_FAKE", "Status: failed"]], status: "failed" },
+  { message: "Cookie: sid=FIRST_FAKE", other: "Set-Cookie: refresh=SECOND_FAKE", status: "failed" },
+]) {
+  test(`quoted diagnostic boundaries preserve ${JSON.stringify(diagnostic)}`, () => {
+    const input = JSON.stringify(diagnostic);
+    const output = redactSecrets(input);
+    assert.doesNotMatch(output, /FIRST_FAKE|SECOND_FAKE/);
+    assert.equal(redactSecrets(output), output);
+    assert.match(output, /failed/);
+    assert.doesNotThrow(() => JSON.parse(output));
+    const notice = grokApprovalNotice({ id: "card", kind: "send-message", message: {
+      type: "auto-review-approval", approval: { requestId: "approval", status: "pending", summary: input },
+    } }, "fixture-bot");
+    assert.doesNotMatch(notice, /FIRST_FAKE|SECOND_FAKE/);
+    assert.match(notice, /failed/);
+  });
+}
+
+for (const quote of ["'", '"']) {
+  test(`unterminated ${quote} cookie header redacts the rest of its line`, () => {
+    const input = `${quote}Cookie:${" ".repeat(8000)}FIRST_FAKE; refresh=SECOND_FAKE\nStatus: failed`;
+    const output = redactSecrets(input);
+    assert.doesNotMatch(output, /FIRST_FAKE|SECOND_FAKE/);
+    assert.match(output, /Status: failed/);
+    assert.equal(redactSecrets(output), output);
+    const notice = grokApprovalNotice({ id: "card", kind: "send-message", message: {
+      type: "auto-review-approval", approval: { requestId: "approval", status: "pending", command: input },
+    } }, "fixture-bot");
+    assert.doesNotMatch(notice, /FIRST_FAKE|SECOND_FAKE/);
+    assert.match(notice, /Status: failed/);
+  });
+}

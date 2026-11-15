@@ -114,3 +114,23 @@ test("add and remove send valid updated membership", async (t) => {
     { id: group.id, memberAgentIds: [bots[1].id] },
   ]);
 });
+
+for (const operation of ["add", "remove"]) {
+  test(`gateway group ${operation} takes one roster snapshot`, async (t) => {
+    let scans = 0;
+    t.mock.method(globalThis, "fetch", async (url, options) => {
+      if (new URL(url).pathname.endsWith("/listAgents")) {
+        scans += 1;
+        return new Response(JSON.stringify({ agents: [
+          { id: "a", name: "Alpha" }, { id: "b", name: "Beta" }, { id: "c", name: "Gamma" },
+          { id: "group", name: "Group", isGroup: true, memberIds: ["a", "b"] },
+        ] }));
+      }
+      return new Response(JSON.stringify({ agent: { id: "group", memberIds: JSON.parse(options.body).memberAgentIds } }));
+    });
+    const session = { gatewayUrl: "http://127.0.0.1:1340", gatewayToken: "fake" };
+    const result = operation === "add" ? await addGroupMember(session, "group", "c") : await removeGroupMember(session, "group", "b");
+    assert.equal(scans, 1);
+    assert.deepEqual(result.memberIds, operation === "add" ? ["a", "b", "c"] : ["a"]);
+  });
+}

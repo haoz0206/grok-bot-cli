@@ -1,7 +1,7 @@
 import { Agent } from '@agent-bundle/runtime';
 import type { CliRouteConfig, CliRouteProps } from 'agent-bundle';
 
-import { summarize } from '../../core/format.js';
+import { stripTerminalControls, summarize } from '../../core/format.js';
 import {
   agentSummarySchema,
   backendFlagsSchema,
@@ -42,7 +42,7 @@ export default async function groupsCreate({ input }: CliRouteProps<typeof input
   const rec = await backend.createGroup({ ...toCreateInput(fields), memberIds: member });
   return (
     <Agent.Result value={summarize(rec)}>
-      <Agent.Text>{`Created group ${rec.name} (${rec.id}) with ${rec.memberIds.length} members`}</Agent.Text>
+      <Agent.Text>{stripTerminalControls(`Created group ${rec.name} (${rec.id}) with ${rec.memberIds.length} members`)}</Agent.Text>
     </Agent.Result>
   );
 }
