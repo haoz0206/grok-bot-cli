@@ -119,16 +119,18 @@ test("wrapper exports CODEX_HOME and derives the socket from it at runtime", {
   const custom = defaultPaths({ env: { CODEX_HOME: "/tmp/custom-home", HOME: "/tmp/u" }, home: "/tmp/u" });
   const script = renderWrapperScript(custom);
   assert.ok(custom.socketPath.startsWith("/tmp/custom-home"));
-  assert.match(script, /export CODEX_HOME="\$\{CODEX_HOME:-\/tmp\/custom-home\}"/);
+  assert.match(script, /DEFAULT_CODEX_HOME='\/tmp\/custom-home'/);
+  assert.match(script, /export CODEX_HOME="\$\{CODEX_HOME:-\$DEFAULT_CODEX_HOME\}"/);
   assert.match(script, /SOCK="\$\{CODEX_APP_SERVER_SOCK:-\$CODEX_HOME\/app-server-control\/app-server-control\.sock\}"/);
   assert.match(script, /export CODEX_APP_SERVER_SOCK="\$SOCK"/);
-  assert.ok(script.includes(`BRIDGE_LOG="\${CODEX_STDIO_BRIDGE_LOG:-${custom.bridgeLogPath}}"`));
+  assert.ok(script.includes(`DEFAULT_BRIDGE_LOG='${custom.bridgeLogPath}'`));
+  assert.match(script, /BRIDGE_LOG="\$\{CODEX_STDIO_BRIDGE_LOG:-\$DEFAULT_BRIDGE_LOG\}"/);
 
   const fallback = defaultPaths({ env: { HOME: "/tmp/u" }, home: "/tmp/u" });
   const fallbackScript = renderWrapperScript(fallback);
   assert.match(
     fallbackScript,
-    /export CODEX_HOME="\$\{CODEX_HOME:-\/tmp\/u\/\.codex\}"/,
+    /DEFAULT_CODEX_HOME='\/tmp\/u\/\.codex'/,
   );
 });
 
@@ -153,7 +155,7 @@ test("env script and plist point at the installed paths with the stable label", 
   const renderedEnv = renderEnvScript({ codexHome: "/c", envLogPath: "/l", realPath: "/r", wrapperPath: "/w" });
   assert.match(renderedEnv, /launchctl setenv CODEX_CLI_PATH/);
   assert.match(renderedEnv, /launchctl setenv CODEX_HOME "\$CODEX_HOME_DIR"/);
-  assert.match(renderedEnv, /WRAPPER="\/w"/);
+  assert.match(renderedEnv, /WRAPPER='\/w'/);
   assert.doesNotMatch(renderedEnv, /Users\/zackjackson/);
 
   const plist = renderPlist({ envScriptPath: "/w/env.sh" });
@@ -778,7 +780,7 @@ test("vendored bridge pins the must-fix set: commit-before-write, strict 101, EO
 test("login script keeps one CODEX_HOME for GUI env and daemon upkeep", () => {
   const renderedEnv = renderEnvScript({ codexHome: "/c", envLogPath: "/l", realPath: "/r", wrapperPath: "/w" });
   assert.match(renderedEnv, /export CODEX_HOME="\$CODEX_HOME_DIR"/);
-  assert.match(renderedEnv, /CODEX_HOME_DIR="\/c"/);
+  assert.match(renderedEnv, /CODEX_HOME_DIR='\/c'/);
   assert.match(renderedEnv, /launchctl setenv CODEX_HOME "\$CODEX_HOME_DIR"/);
 });
 

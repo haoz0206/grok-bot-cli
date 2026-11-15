@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { chmodSync, mkdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, lstatSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 
@@ -30,10 +30,6 @@ const BRIDGE_LOG_FILENAME = "codex-stdio-to-daemon-ws.log";
 const WRAPPER_LOG_FILENAME = "codex-desktop-to-daemon.log";
 const ENV_LOG_FILENAME = "codex-desktop-shared-daemon-env.log";
 const STANDALONE_REAL_SUFFIX = join("packages", "standalone", "current", "bin", "codex");
-
-function codexHomeDir(env = process.env) {
-  return env.CODEX_HOME || join(env.HOME || homedir(), ".codex");
-}
 
 function userHomeDir(env = process.env) {
   return env.HOME || homedir();
@@ -80,7 +76,16 @@ export function shouldBridge(argv) {
   return appServer && !daemon && !proxy && !generate && !oneShot;
 }
 
-export function renderWrapperScript({ realPath, bridgePath, wrapperLogPath, codexHome, bridgeLogPath }) {
+const shellQuote = value => `'${value.replaceAll("'", "'\\''")}'`;
+const xmlText = value => value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
+const shellDefault = (name, override, value, exported = false) => `DEFAULT_${name}=${shellQuote(value)}\n${exported ? "export " : ""}${name}="\${${override}:-$DEFAULT_${name}}"`;
+const legacyShellDefault = (name, override, value, exported = false) => `${exported ? "export " : ""}${name}="\${${override}:-${value}}"`;
+
+export function renderWrapperScript(paths) {
+  return wrapperScript(paths, shellDefault);
+}
+
+function wrapperScript({ realPath, bridgePath, wrapperLogPath, codexHome, bridgeLogPath }, defaultPath) {
   return `#!/bin/bash
 # Installed by \`gbot codex desktop-shim install\`. Rewrites ChatGPT Desktop's
 # \`codex ... app-server\` spawn into a stdio<->WebSocket bridge onto the managed
@@ -96,12 +101,12 @@ export function renderWrapperScript({ realPath, bridgePath, wrapperLogPath, code
 # half-consumed stdin or dirty stdout. Bridge exit 0 means it served the session. Never touches
 # Desktop binaries or its private tool pipe.
 set -u
-REAL="\${CODEX_DESKTOP_WRAPPER_REAL:-${realPath}}"
-BRIDGE="\${CODEX_DESKTOP_BRIDGE:-${bridgePath}}"
-export CODEX_HOME="\${CODEX_HOME:-${codexHome}}"
+${defaultPath("REAL", "CODEX_DESKTOP_WRAPPER_REAL", realPath)}
+${defaultPath("BRIDGE", "CODEX_DESKTOP_BRIDGE", bridgePath)}
+${defaultPath("CODEX_HOME", "CODEX_HOME", codexHome, true)}
 SOCK="\${CODEX_APP_SERVER_SOCK:-$CODEX_HOME/app-server-control/app-server-control.sock}"
-BRIDGE_LOG="\${CODEX_STDIO_BRIDGE_LOG:-${bridgeLogPath}}"
-LOG="\${CODEX_DESKTOP_WRAPPER_LOG:-${wrapperLogPath}}"
+${defaultPath("BRIDGE_LOG", "CODEX_STDIO_BRIDGE_LOG", bridgeLogPath)}
+${defaultPath("LOG", "CODEX_DESKTOP_WRAPPER_LOG", wrapperLogPath)}
 export CODEX_APP_SERVER_SOCK="$SOCK"
 export CODEX_STDIO_BRIDGE_LOG="$BRIDGE_LOG"
 ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
@@ -169,7 +174,11 @@ exit 1
 `;
 }
 
-export function renderEnvScript({ wrapperPath, realPath, envLogPath, codexHome }) {
+export function renderEnvScript(paths) {
+  return envScript(paths, shellQuote);
+}
+
+function envScript({ wrapperPath, realPath, envLogPath, codexHome }, quote) {
   return `#!/bin/bash
 # Installed by \`gbot codex desktop-shim install\`. Re-applies the GUI-domain env
 # so ChatGPT.app inherits CODEX_CLI_PATH after login, then best-effort starts the
@@ -177,10 +186,10 @@ export function renderEnvScript({ wrapperPath, realPath, envLogPath, codexHome }
 # daemon upkeep). No -e: every step is best-effort so login never breaks.
 # Revert: \`gbot codex desktop-shim uninstall\`.
 set -u
-WRAPPER="${wrapperPath}"
-REAL="${realPath}"
-LOG="${envLogPath}"
-CODEX_HOME_DIR="${codexHome}"
+WRAPPER=${quote(wrapperPath)}
+REAL=${quote(realPath)}
+LOG=${quote(envLogPath)}
+CODEX_HOME_DIR=${quote(codexHome)}
 # One CODEX_HOME for the GUI domain and this script's own daemon start, so the
 # daemon that is kept up is the one the wrapper bridges to.
 export CODEX_HOME="$CODEX_HOME_DIR"
@@ -211,17 +220,21 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 `;
 }
 
-export function renderPlist({ envScriptPath, label = SHIM_LABEL }) {
+export function renderPlist(paths) {
+  return plist(paths, xmlText);
+}
+
+function plist({ envScriptPath, label = SHIM_LABEL }, text) {
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
 \t<key>Label</key>
-\t<string>${label}</string>
+\t<string>${text(label)}</string>
 \t<key>ProgramArguments</key>
 \t<array>
 \t\t<string>/bin/bash</string>
-\t\t<string>${envScriptPath}</string>
+\t\t<string>${text(envScriptPath)}</string>
 \t</array>
 \t<key>RunAtLoad</key>
 \t<true/>
@@ -256,12 +269,6 @@ function writeExecutable(path, content) {
 
 function isExecutable(path) {
   try {
-    statSync(path);
-  } catch {
-    return false;
-  }
-  try {
-    // X_OK without throwing: accessSync is clearer; stat mode bit check is sync-safe.
     return (statSync(path).mode & 0o111) !== 0;
   } catch {
     return false;
@@ -341,7 +348,7 @@ export function installDesktopShim({
   };
 }
 
-/** Remove what install wrote and unset the GUI env; Desktop/Codex fall back to stock. */
+/** Remove recognized generated files and GUI values still owned by the shim. */
 export function uninstallDesktopShim({
   env = process.env,
   home = userHomeDir(env),
@@ -351,37 +358,55 @@ export function uninstallDesktopShim({
   const paths = defaultPaths({ env, home });
   const warnings = [];
   const removed = [];
-  for (const path of [paths.wrapperPath, paths.bridgePath, paths.envScriptPath]) {
-    const existed = fileExists(path);
+  const artifacts = [
+    [paths.wrapperPath, [renderWrapperScript(paths), wrapperScript(paths, legacyShellDefault)]],
+    [paths.bridgePath, [BRIDGE_SOURCE.endsWith("\n") ? BRIDGE_SOURCE : `${BRIDGE_SOURCE}\n`]],
+    [paths.envScriptPath, [renderEnvScript(paths), envScript(paths, value => `"${value}"`)]],
+    ...(platform === "darwin" ? [[paths.plistPath, [renderPlist(paths), plist(paths, value => value)]]] : []),
+  ];
+  const owned = new Set();
+  for (const [path, contents] of artifacts) {
     try {
-      if (rmSync(path, { force: true }) === undefined && fileExists(path)) warnings.push(`could not remove ${path}`);
-      else if (existed && !fileExists(path)) removed.push(path);
+      if (lstatSync(path).isFile() && contents.includes(readFileSync(path, "utf8"))) owned.add(path);
+      else warnings.push(`preserving unrecognized or modified artifact ${path}`);
     } catch (error) {
-      warnings.push(`could not remove ${path} (${error instanceof Error ? error.message : String(error)})`);
+      if (error.code !== "ENOENT") warnings.push(`could not inspect ${path} (${error instanceof Error ? error.message : String(error)}); preserving it`);
     }
   }
-  let plistRemoved = false;
-  if (platform === "darwin") {
+
+  const guiValue = key => {
+    try {
+      const out = runBestEffort(runner, warnings, `launchctl getenv ${key}`, "launchctl", ["getenv", key]);
+      return out && !out.error && out.status === 0 && typeof out.stdout === "string" ? out.stdout.replace(/\r?\n$/, "") : null;
+    } catch (error) {
+      warnings.push(`launchctl getenv ${key} failed (${error instanceof Error ? error.message : String(error)}); preserving GUI environment`);
+      return null;
+    }
+  };
+  let clearCli = false, clearDaemon = false;
+  if (platform === "darwin" && owned.has(paths.wrapperPath)) {
+    clearCli = guiValue("CODEX_CLI_PATH") === paths.wrapperPath;
+    clearDaemon = guiValue("CODEX_APP_SERVER_USE_LOCAL_DAEMON") === "1";
+  }
+  if (platform === "darwin" && owned.has(paths.plistPath)) {
     const uid = typeof process.getuid === "function" ? process.getuid() : null;
     if (uid !== null && uid !== undefined) {
       runBestEffort(runner, warnings, "launchctl bootout", "launchctl", ["bootout", `gui/${uid}/${paths.label}`]);
     }
+  }
+  let plistRemoved = false;
+  for (const path of owned) {
     try {
-      rmSync(paths.plistPath, { force: true });
-      plistRemoved = !fileExists(paths.plistPath);
+      rmSync(path);
+      if (path === paths.plistPath) plistRemoved = true;
+      else removed.push(path);
     } catch (error) {
-      warnings.push(`could not remove ${paths.plistPath} (${error instanceof Error ? error.message : String(error)})`);
+      warnings.push(`could not remove ${path} (${error instanceof Error ? error.message : String(error)})`);
     }
+  }
+  if (clearCli) {
     runBestEffort(runner, warnings, "launchctl unsetenv CODEX_CLI_PATH", "launchctl", ["unsetenv", "CODEX_CLI_PATH"]);
-    runBestEffort(runner, warnings, "launchctl unsetenv CODEX_HOME", "launchctl", ["unsetenv", "CODEX_HOME"]);
-    runBestEffort(runner, warnings, "launchctl unsetenv CODEX_APP_SERVER_USE_LOCAL_DAEMON", "launchctl", [
-      "unsetenv",
-      "CODEX_APP_SERVER_USE_LOCAL_DAEMON",
-    ]);
-    runBestEffort(runner, warnings, "launchctl unsetenv CODEX_APP_SERVER_WS_URL", "launchctl", [
-      "unsetenv",
-      "CODEX_APP_SERVER_WS_URL",
-    ]);
+    if (clearDaemon) runBestEffort(runner, warnings, "launchctl unsetenv CODEX_APP_SERVER_USE_LOCAL_DAEMON", "launchctl", ["unsetenv", "CODEX_APP_SERVER_USE_LOCAL_DAEMON"]);
   }
   return {
     action: "uninstall",
