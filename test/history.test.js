@@ -19,6 +19,7 @@ async function fixture(t) {
   const home = mkdtempSync(join(tmpdir(), "gbot-history-test-"));
   t.after(() => rmSync(home, { recursive: true, force: true }));
   const env = { ...process.env, HOME: home, USERPROFILE: home };
+  delete env.CODEX_THREAD_ID;
   for (const key of Object.keys(env)) {
     if (/^(GROK_BOT_|CURSOR_|SAND_)/.test(key)) delete env[key];
   }
@@ -203,7 +204,7 @@ test("failed sends and empty threads leave no history; disk failure does not fai
   assert.match(result.stderr, /Warning: could not save local history/);
   assert.equal(f.calls.filter((c) => c.method === "/api/sendPrompt" && c.body.prompt === "sent once").length, 1);
   const protectedText = await f.run(["send", "Researcher", "--", "--json"]);
-  assert.match(protectedText.stdout, /^Sent to bot Researcher/);
+  assert.match(protectedText.stdout, /^Delivery unknown to bot Researcher/);
   assert.equal(f.calls.at(-1).body.prompt, "--json", "`--` makes flag-like text literal");
 });
 

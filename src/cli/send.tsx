@@ -12,6 +12,7 @@ import { buildEnvelope, withEnvelopeHeader } from '../core/codex-bridge.js';
 import { envCodexThreadId, withCodexSender } from '../core/sender-prefix.js';
 import { outcomeFromError } from '../core/codex/contract.js';
 import { saveHistory } from '../core/history.js';
+import { describeDelivery, stripTerminalControls } from '../core/format.js';
 import {
   backendFlagsSchema,
   failureDocumentSchema,
@@ -181,13 +182,18 @@ export default async function send({
   } catch (error) {
     value = outcomeFromError(error);
   }
-  const text =
-    value.exitCode === 0
-      ? `Sent to ${value.kind} ${value.name} (${value.id})${value.messageId ? ` message ${value.messageId}` : ''}; envelope ${value.envelopeId}`
-      : value.error;
+  let text: string;
+  if (value.exitCode === 0) {
+    const status = value.delivery === 'accepted' ? 'Sent' : describeDelivery(value);
+    const receipt = value.messageId ? ` message ${value.messageId}` : '';
+    const hint = value.delivery === 'unknown' ? '; check the thread before resending' : '';
+    text = `${status} to ${value.kind} ${value.name} (${value.id})${receipt}${hint}; envelope ${value.envelopeId}`;
+  } else {
+    text = value.error;
+  }
   return (
     <Agent.Result value={value}>
-      <Agent.Text>{text}</Agent.Text>
+      <Agent.Text>{stripTerminalControls(text, true)}</Agent.Text>
     </Agent.Result>
   );
 }

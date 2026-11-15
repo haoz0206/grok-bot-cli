@@ -12,6 +12,7 @@ const exec = promisify(execFile);
 
 test("built CLI preserves manual/no-history sends and truthful server Bot receipts", async (t) => {
   const home = mkdtempSync(join(tmpdir(), "gbot-backend-cli-"));
+  const botName = "Momo\x1b]52;c;RkFLRQ==\x07";
   let scenario, sends, nonce;
   const received = [];
   const server = createServer(async (req, res) => {
@@ -25,7 +26,7 @@ test("built CLI preserves manual/no-history sends and truthful server Bot receip
         res.end(JSON.stringify({ gatewayUrl: `http://127.0.0.1:${server.address().port}`, gatewayToken: "fixture-gateway" }));
         break;
       case "/api/listAgents":
-        res.end(JSON.stringify({ agents: [{ id: "fixture-bot", name: "Momo" }] }));
+        res.end(JSON.stringify({ agents: [{ id: "fixture-bot", name: botName }] }));
         break;
       case "/aiserver.v1.GrokBotService/SendGrokBotUserMessage":
         sends++;
@@ -77,6 +78,19 @@ test("built CLI preserves manual/no-history sends and truthful server Bot receip
       assert.equal(received.includes("/api/sendPrompt"), false);
       assert.equal(existsSync(join(home, "history/history.jsonl")), false);
       assert.equal(existsSync(join(home, ".grok-bot-cli/relay")), false);
+      if (code === 0) {
+        assert.equal(out.name, botName, "JSON preserves the original name");
+        sends = 0;
+        const human = await exec(process.execPath, args.filter(arg => arg !== "--json"), { env, timeout: 15000 });
+        assert.equal(sends, 1, "a separate human-output invocation sends once");
+        assert.doesNotMatch(human.stdout, /[\x00-\x09\x0b-\x1f\x7f-\x9f]/);
+        if (delivery === "accepted") assert.match(human.stdout, /^Sent to bot Momo/);
+        else {
+          assert.match(human.stdout, /Delivery unknown/);
+          assert.match(human.stdout, /check the thread before resending/i);
+          assert.doesNotMatch(human.stdout, /Sent to/);
+        }
+      }
     });
   }
 });

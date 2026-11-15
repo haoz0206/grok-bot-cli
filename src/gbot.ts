@@ -80,16 +80,15 @@ const threadEntry = (raw: unknown): Entry => {
 const metaLength = (entry: Entry): number => entry.id.length + entry.kind.length + (entry.role?.length ?? 0);
 
 export const transcriptEntries = (transcript: unknown): Entry[] => {
-  const rows = unwrapEntries(transcript);
-  let remaining = TRANSCRIPT_TOTAL_MAX;
-  return rows.map((raw: unknown) => {
-    const entry = threadEntry(raw);
-    const allowText = Math.max(0, Math.min(entry.text.length, remaining - metaLength(entry)));
+  const entries: Entry[] = unwrapEntries(transcript).map(threadEntry);
+  let remaining = Math.max(0, TRANSCRIPT_TOTAL_MAX - entries.reduce((length, entry) => length + metaLength(entry), 0));
+  return entries.map((entry) => {
+    const allowText = Math.min(entry.text.length, remaining);
     if (allowText < entry.text.length) {
       entry.text = allowText <= 0 ? '' : entry.text.slice(0, allowText);
       entry.truncated = entry.fullLength > entry.text.length;
     }
-    remaining = Math.max(0, remaining - metaLength(entry) - entry.text.length);
+    remaining -= entry.text.length;
     return entry;
   });
 };

@@ -63,7 +63,6 @@ export default defineTool(
   async ({ after, limit, target, full }) => {
     const tail = await withRedactedErrors(async () => getTranscriptTail(await connectGateway(), target, limit));
     const delta = transcriptDelta(tail.transcript, { after, limit });
-    const entries = transcriptEntries({ entries: delta.entries });
     const summary = delta.gapReset
       ? `${delta.entryCount} entries; gap reset`
       : after === undefined
@@ -82,7 +81,7 @@ export default defineTool(
         </Agent.Result>
       );
     }
-    const value = { ...receipt, entries };
+    const value = { ...receipt, entries: transcriptEntries({ entries: delta.entries }) };
     return (
       <Agent.Result value={value}>
         <Agent.Text>{summary}</Agent.Text>

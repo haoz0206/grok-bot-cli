@@ -1,8 +1,10 @@
 import { createServer, type IncomingMessage, type Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from '@rstest/core';
+import { afterAll, beforeAll, beforeEach, describe, expect, it, rstest } from '@rstest/core';
 import { invokeMcpTool, listMcpSurface } from 'agent-bundle/test';
+import { z } from 'zod';
+import * as gbot from '../../src/gbot.js';
 
 /**
  * The tools run the real `gbot` gateway client against a loopback fake
@@ -386,9 +388,51 @@ describe('grok-bot MCP server', () => {
     expect(full.isError).toBe(false);
     const entries = (full.structuredContent as { entries: { id: string; text: string; truncated: boolean; fullLength: number }[] }).entries;
     expect(entries.length).toBe(11);
-    expect(entries[9]?.text.length).toBe(19940);
+    expect(entries[9]?.text.length).toBe(19933);
     expect(entries[9]).toMatchObject({ id: 'b9', truncated: true, fullLength: 20000 });
     expect(entries[10]).toEqual({ id: 'b10', kind: 'note', text: '', truncated: true, fullLength: 20000 });
+  });
+
+  it('gbot_thread reserves all metadata before spending its aggregate text budget', async () => {
+    const previous = transcripts['bot-7'];
+    transcripts['bot-7'] = {
+      entries: Array.from({ length: 200 }, (_, index) => ({
+        id: String(index).padEnd(300, 'i'), kind: 'k'.repeat(300), role: 'r'.repeat(300), text: 'x'.repeat(9000),
+      })),
+    };
+    try {
+      const full = await invokeMcpTool('gbot_thread', {
+        input: { full: true, limit: 200, target: 'Meta' }, server: 'grok-bot',
+      });
+      expect(full.isError).toBe(false);
+      expect(full.structuredContent).toMatchObject({ entryCount: 200, cursor: String(199).padEnd(300, 'i') });
+      const { entries } = z.object({ entries: gbot.entrySchema.array() }).parse(full.structuredContent);
+      expect(entries).toHaveLength(200);
+      expect(entries.reduce((length, entry) => length + entry.id.length + entry.kind.length + (entry.role?.length ?? 0) + entry.text.length, 0)).toBe(200000);
+      expect(entries.every(entry => entry.text.length <= 20000)).toBe(true);
+      expect(entries.at(-1)).toMatchObject({ id: `${String(199).padEnd(200, 'i')}…`, text: '', truncated: true, fullLength: 9000 });
+    } finally {
+      transcripts['bot-7'] = previous;
+    }
+  });
+
+  it('gbot_thread skips entry formatting for receipt-only reads', async () => {
+    const formatEntries = rstest.spyOn(gbot, 'transcriptEntries');
+    try {
+      const receipt = await invokeMcpTool('gbot_thread', {
+        input: { target: 'Big' }, server: 'grok-bot',
+      });
+      expect(receipt.isError).toBe(false);
+      expect(receipt.structuredContent).toMatchObject({ cursor: 'b10', entryCount: 11 });
+      expect(formatEntries).not.toHaveBeenCalled();
+      const full = await invokeMcpTool('gbot_thread', {
+        input: { full: true, target: 'Big' }, server: 'grok-bot',
+      });
+      expect(full.isError).toBe(false);
+      expect(formatEntries).toHaveBeenCalledTimes(1);
+    } finally {
+      formatEntries.mockRestore();
+    }
   });
 
   it('gbot_thread enforces the requested count even when the gateway ignores the limit', async () => {
