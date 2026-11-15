@@ -1,5 +1,12 @@
 # grok-bot-cli
 
+## 0.12.6
+
+### Patch Changes
+
+- 4824ade: Publish this fork as @haoz0206/grok-bot-cli with its own repository links and public npm registry configuration. Keep the gbot commands and plugin identity compatible with existing integrations.
+- d05df77: Send messages to server-hosted Grok Bots through the Cursor backend when using desktop or Cursor credentials. Preserve custom gateway overrides, require a matching transcript receipt, and keep uncertain deliveries from being resent automatically.
+
 ## 0.12.5
 
 ### Patch Changes
