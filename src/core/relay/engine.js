@@ -13,6 +13,7 @@ import {
 } from "./records.js";
 import { createIntake } from "./intake.js";
 import { withCodexSender } from "../sender-prefix.js";
+import { normalizeCodexThreadId } from "../codex/thread-id.js";
 import { createCompletion } from "./completion.js";
 import { errorDetail } from "./detail.js";
 import {
@@ -139,7 +140,7 @@ export async function openRelayEngine({
       await codex.verify(b);
       return { ...b, busyPolicy: input.busyPolicy ?? b.busyPolicy };
     }
-    const threadId = relayId.parse(input.codexThreadId),
+    const threadId = normalizeCodexThreadId(input.codexThreadId),
       target = await gateway.resolve(input.grokTarget),
       targetId = relayId.parse(target.id);
     const verified = await codex.verify({

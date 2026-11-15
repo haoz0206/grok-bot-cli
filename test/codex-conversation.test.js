@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { fakeAppServer } from "./helpers/codex-server.js";
-import { openCodexConversation } from "../src/core/codex/conversation.js";
+import { openCodexConversation, visitCodexHistory } from "../src/core/codex/conversation.js";
 const final = {id:"final-1",type:"agentMessage",phase:"final_answer",text:"final answer"};
 const mixed = [{id:"comment",type:"agentMessage",phase:"commentary",text:"working"},{id:"reason",type:"reasoning",text:"secret"},final,final];
 const handlers = {
@@ -289,4 +289,65 @@ test('wait accepts a caller timeout longer than 25 minutes', async () => {
  const c = await openCodexConversation('thread-1', { env: { CODEX_HOME: fake.home } });
  try { assert.equal((await c.wait({ turnId: 'turn-1', timeoutMs: 1500001, signal: controller.signal })).execution.state, 'unknown'); }
  finally { await c.close(); await fake.close(); }
+});
+
+
+test('local thread IDs are normalized for resume, events, sends and history', async () => {
+ const fake = await fakeAppServer({...handlers, 'thread/resume': (p, ok) => ok({thread: {id: 'thread-1', cwd: process.cwd(), status: {type: 'idle'}}})});
+ let c;
+ try {
+  c = await openCodexConversation('local:thread-1', {env: {CODEX_HOME: fake.home}});
+  assert.equal(c.threadId, 'thread-1');
+  assert.equal((await c.send('hello')).threadId, 'thread-1');
+  assert.equal((await c.wait({turnId: 'turn-1'})).execution.state, 'completed');
+  assert.ok(fake.received.filter(m => m.params?.threadId).every(m => m.params.threadId === 'thread-1'));
+ } finally { await c?.close(); await fake.close(); }
+});
+
+test('threadless resolutions clear only requests observed for the conversation', async () => {
+ const observed = [];
+ const fake = await fakeAppServer({...handlers, 'thread/resume': (p, ok, err, send) => {
+  handlers['thread/resume'](p, ok);
+  send({id: 'own', method: 'item/commandExecution/requestApproval', params: {threadId: p.threadId, turnId: 'turn-1'}});
+  send({id: 'foreign', method: 'item/commandExecution/requestApproval', params: {threadId: 'other', turnId: 'turn-1'}});
+  send({method: 'serverRequest/resolved', params: {requestId: 'foreign', threadId: p.threadId}});
+  send({method: 'serverRequest/resolved', params: {requestId: 'unknown', threadId: p.threadId}});
+  send({method: 'serverRequest/resolved', params: {requestId: 'own'}});
+ }, 'thread/turns/list': (_, ok) => ok({data: [{id: 'turn-1', status: 'inProgress'}], nextCursor: null})});
+ const c = await openCodexConversation('thread-1', {env: {CODEX_HOME: fake.home}, onEvent: e => observed.push(e)});
+ try {
+  const r = await c.wait({turnId: 'turn-1', timeoutMs: 10});
+  assert.equal(r.execution.state, 'timeout');
+  assert.deepEqual(r.interactions, []);
+  assert.deepEqual(observed.map(e => e.id ?? e.params.requestId), ['own', 'own']);
+ } finally { await c.close(); await fake.close(); }
+});
+
+test('request ownership is established before a synchronous event callback resolves it', async () => {
+ let request, notify;
+ const observed = [];
+ const session = {client: {
+  closed: false,
+  onNotification(fn) { notify = fn; return () => {}; },
+  onServerRequest(fn) { request = fn; return () => {}; },
+  onClose() { return () => {}; },
+  async request() { return {thread: {id: 'thread-1'}}; },
+ }};
+ const c = await openCodexConversation('thread-1', {session, onEvent(event) {
+  observed.push(event.kind);
+  if (event.kind === 'interaction') notify({method: 'serverRequest/resolved', params: {requestId: event.id}});
+ }});
+ try {
+  request({id: 'own', method: 'approval', params: {threadId: 'thread-1', turnId: 'turn-1'}});
+  notify({method: 'serverRequest/resolved', params: {requestId: 'own'}});
+  assert.deepEqual(observed, ['interaction', 'notification']);
+ } finally { await c.close(); }
+});
+
+test('the history visitor normalizes a local thread ID at its own boundary', async () => {
+ const session = {client: {async request(method, params) {
+  assert.equal(params.threadId, 'thread-1');
+  return {data: [], nextCursor: null};
+ }}};
+ assert.equal((await visitCodexHistory(session, 'local:thread-1', 'thread/turns/list', {}, () => false)).complete, true);
 });

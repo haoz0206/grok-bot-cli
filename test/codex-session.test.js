@@ -82,6 +82,52 @@ test("server requests allow one explicit result or error and resolved IDs cannot
   for (const id of ["result", "error", "resolved", "unknown"]) assert.throws(() => client.respond(id, {}), /pending|resolved|unknown/i);
 });
 
+test("managed sessions resolve more than 128 sequential requests without refusal history", async t => {
+  const { p, client } = await connected(t);
+  client.onServerRequest(message => client.respond(message.id, { decision: "decline" }));
+  for (let id = 0; id < 256; id++) {
+    p.send({ id: "approval-" + id, method: "approval" }, { method: "serverRequest/resolved", params: { requestId: "approval-" + id } });
+    assert.equal(await client.request("echo", id), id);
+  }
+  assert.equal(client.closed, false);
+  assert.equal(client.refused.length, 0);
+  await tick();
+  assert.equal(p.received.filter(message => message.result?.decision === "decline").length, 256);
+});
+
+test("managed sessions still reject 129 simultaneous pending server requests", async t => {
+  const { p, client } = await connected(t);
+  const closed = new Promise(resolve => client.onClose(resolve));
+  p.send(...Array.from({ length: 129 }, (_, id) => ({ id, method: "approval" })));
+  assert.match((await closed).message, /request limit.*128/);
+  assert.equal(client.closed, true);
+  assert.equal(client.refused.length, 0);
+});
+
+test("synchronous listeners consume requests before armed one-shot refusal accounting", async t => {
+  const { p, client } = await connected(t);
+  client.answerServerRequests = true;
+  client.expectedThreadId = "ours";
+  client.expectedTurnId = "our-turn";
+  client.onServerRequest(message => client.respond(message.id, { decision: "decline" }));
+  p.send(...Array.from({ length: 256 }, (_, id) => ({ id, method: "approval", params: { threadId: "ours", turnId: "our-turn" } })));
+  assert.equal(await client.request("echo", "ready"), "ready");
+  assert.equal(client.closed, false);
+  assert.equal(client.refused.length, 0);
+});
+
+test("armed one-shot refusal history keeps its independent 128-request limit", async t => {
+  const { p, client } = await connected(t);
+  client.answerServerRequests = true;
+  client.expectedThreadId = "ours";
+  client.expectedTurnId = "our-turn";
+  const closed = new Promise(resolve => client.onClose(resolve));
+  p.send(...Array.from({ length: 129 }, (_, id) => ({ id, method: "approval", params: { threadId: "ours", turnId: "our-turn" } })));
+  assert.match((await closed).message, /request limit.*128/);
+  assert.equal(client.refused.length, 128);
+  assert.ok(client.refused.every(entry => entry.answered));
+});
+
 test("passive observers leave foreign approvals silent", async t => {
   const { p, client } = await connected(t);
   const seen = [];

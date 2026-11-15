@@ -431,11 +431,12 @@ test("server requests stay unanswered until our own turn starts", async () => {
     const socketPath = join(fake.home, "app-server-control", "app-server-control.sock");
     const client = await connectCodexAppServer(socketPath);
     try {
+      const observed = [];
+      client.onServerRequest(message => observed.push(message));
       await client.request("initialize", { clientInfo: { name: "gbot-test" } });
       await new Promise((resolve) => setTimeout(resolve, 200));
-      const entry = client.refused.find((r) => r.id === "srv-early");
-      assert.ok(entry, "early server request is recorded");
-      assert.equal(entry.answered, false);
+      assert.ok(observed.some(message => message.id === "srv-early"), "early server request reaches observers");
+      assert.equal(client.refused.length, 0, "unarmed requests do not consume one-shot refusal history");
       assert.equal(fake.received.find((m) => m.id === "srv-early"), undefined);
     } finally {
       client.close();

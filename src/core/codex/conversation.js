@@ -21,7 +21,7 @@ const namedTurn = p => p?.turnId ?? p?.turn_id ?? p?.turn?.id;
 /** Bounded traversal; a coverage failure throws and must never be interpreted as not found. */
 export async function visitCodexHistory(session, threadId, method, params, visit, { signal, stopped = () => false } = {}) {
   if (!['thread/turns/list', 'thread/items/list'].includes(method)) throw new RangeError('Unsupported history method');
-  conversationId(threadId);
+  threadId = conversationId(threadId);
   const client = session.client;
   let cursor;
   const seen = new Set();
@@ -40,7 +40,7 @@ export async function visitCodexHistory(session, threadId, method, params, visit
 
 /** A bounded observer. Cancellation ends observation, never the daemon's turn. */
 export async function openCodexConversation(threadId, options = {}) {
-  conversationId(threadId);
+  threadId = conversationId(threadId);
   const { env = process.env, expectedCwd, signal, onEvent } = options;
   assertThreadAllowed(threadId, env);
   if (signal !== undefined && !(signal instanceof AbortSignal)) throw new TypeError('signal must be an AbortSignal');
@@ -51,6 +51,7 @@ export async function openCodexConversation(threadId, options = {}) {
   const { client } = session;
   const events = [];
   const acceptedTurns = new Set();
+  const requestIds = new Set();
   const wake = new Set();
   let bytes = 0, overflow = false, disconnected = client.closed, closed = false;
   const record = event => {
@@ -64,7 +65,12 @@ export async function openCodexConversation(threadId, options = {}) {
   };
   const observe = kind => message => {
     const p = message.params;
-    if ((p?.threadId ?? p?.thread_id) !== threadId) return;
+    if (kind === 'notification' && message.method === 'serverRequest/resolved') {
+      if (!requestIds.delete(p?.requestId)) return;
+    } else {
+      if ((p?.threadId ?? p?.thread_id) !== threadId) return;
+      if (kind === 'interaction') requestIds.add(message.id);
+    }
     return record({ kind, ...message });
   };
   const unsubs = [client.onNotification(observe('notification')), client.onServerRequest(observe('interaction')),
@@ -73,6 +79,7 @@ export async function openCodexConversation(threadId, options = {}) {
     if (closed) return;
     closed = true;
     for (const unsubscribe of unsubs) unsubscribe();
+    requestIds.clear();
     for (const listener of wake) listener();
     if (!options.session) client.close();
   };

@@ -744,3 +744,16 @@ test("a rejected managed send keeps the daemon's explanation as receipt detail",
   assert.match(out.detail, /busy|active|mid-turn|go idle/i);
   assert.ok(out.detail.length <= 1024);
 });
+
+
+test("bridge start persists a canonical Codex thread ID and uses it after restart", async t => {
+  const f = await fixture(t);
+  const binding = await f.engine.startBinding({ grokTarget: "target", codexThreadId: "local:thread", requestId: "canonical" });
+  assert.equal(binding.threadId, "thread");
+  assert.equal(f.engine.status().bindings[0].threadId, "thread");
+  await f.restart();
+  f.page.push({ id: "g-canonical", kind: "send-message", requestId: "canonical-message", text: "Hello" });
+  await f.engine.tick();
+  assert.ok(f.fake.received.filter(m => m.params?.threadId).every(m => m.params.threadId === "thread"));
+  assert.equal(f.fake.received.filter(m => m.method === "turn/start").length, 1);
+});

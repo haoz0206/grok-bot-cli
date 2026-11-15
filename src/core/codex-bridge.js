@@ -492,14 +492,14 @@ export function connectCodexAppServer(path, { timeoutMs = 15000, signal, onNotif
     const onMessage = (msg) => {
       if (msg.id != null && msg.method) {
         if (serverRequests.has(msg.id)) return failProtocol("duplicate pending server request id");
-        if (serverRequests.size >= CODEX_MAX_REQUESTS || refused.length >= CODEX_MAX_REQUESTS || client.deferred.length >= CODEX_MAX_REQUESTS) {
+        if (serverRequests.size >= CODEX_MAX_REQUESTS || (client.answerServerRequests && refused.length >= CODEX_MAX_REQUESTS) || client.deferred.length >= CODEX_MAX_REQUESTS) {
           return failAll(new Error("Codex remembered server request limit exceeds " + CODEX_MAX_REQUESTS));
         }
         const entry = { id: msg.id, method: msg.method, params: msg.params, answered: false };
         serverRequests.set(msg.id, entry);
         dispatch("serverRequest", msg);
-        if (closed) return;
-        let answered = client.answerServerRequests;
+        if (closed || !client.answerServerRequests || !serverRequests.has(msg.id)) return;
+        let answered = true;
         let defer = false;
         // Approval ownership: only answer requests for the turn gbot itself
         // started. A request naming another thread — or naming a turn that is
@@ -1150,9 +1150,9 @@ export function assertThreadAllowed(threadId, env = process.env) {
 /**
  * Busy destinations. In app-server 0.158.0 `turn/start` on a thread with an active turn steers
  * that turn instead of queueing (TurnStartParams.turnTrigger: "Ignored when this request steers
- * an already-active turn"). gbot never steers or interrupts human work: an `active` thread is
- * refused with a `busy` receipt, or, with `whenBusy: "queue"`, handed to the daemon's own queue
- * through the experimental `thread/queue/add`. See docs/codex-busy-threads.md.
+ * an already-active turn"). The default `reject` policy returns a `busy` receipt;
+ * `queue` uses experimental `thread/queue/add`, and persistent `steer` requires
+ * an explicit turn guard. See docs/codex-busy-threads.md.
  */
 function threadState(resumed, threadId) {
   const status = resumed.thread.status;
