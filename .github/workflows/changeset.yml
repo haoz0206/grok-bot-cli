@@ -50,6 +50,6 @@ jobs:
           # Exit 1 when a shipped file changed (changedFilePatterns in
           # .changeset/config.json) and this PR adds no .changeset/*.md.
           if ! npx changeset status --since=origin/main --verbose; then
-            echo "::error::This PR changes grok-bot-cli's shipped surface without a changeset. Run 'npx changeset' (or add .changeset/<slug>.md). For a genuinely no-op change, apply the 'skip-changeset' label."
+            echo "::error::This PR changes @haoz0206/grok-bot-cli's shipped surface without a changeset. Run 'npx changeset' (or add .changeset/<slug>.md). For a genuinely no-op change, apply the 'skip-changeset' label."
             exit 1
           fi

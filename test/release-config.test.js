@@ -15,17 +15,25 @@ const readJson = (path) =>
 const projectRoot = fileURLToPath(new URL("../", import.meta.url));
 const artifactRoot = fileURLToPath(new URL("../artifact/", import.meta.url));
 
-test("npm package metadata identifies the public source repository", () => {
+test("npm package metadata publishes the fork under its owner's public scope", () => {
+  assert.equal(packageJson.name, "@haoz0206/grok-bot-cli");
+  assert.deepEqual(packageJson.publishConfig, {
+    access: "public",
+    registry: "https://registry.npmjs.org/",
+  });
+  const lock = readJson("../package-lock.json");
+  assert.equal(lock.name, packageJson.name);
+  assert.equal(lock.packages[""].name, packageJson.name);
   assert.deepEqual(packageJson.repository, {
     type: "git",
-    url: "git+https://github.com/ScriptedAlchemy/grok-bot-cli.git",
+    url: "git+https://github.com/haoz0206/grok-bot-cli.git",
   });
   assert.equal(
     packageJson.homepage,
-    "https://github.com/ScriptedAlchemy/grok-bot-cli#readme",
+    "https://github.com/haoz0206/grok-bot-cli#readme",
   );
   assert.deepEqual(packageJson.bugs, {
-    url: "https://github.com/ScriptedAlchemy/grok-bot-cli/issues",
+    url: "https://github.com/haoz0206/grok-bot-cli/issues",
   });
 });
 

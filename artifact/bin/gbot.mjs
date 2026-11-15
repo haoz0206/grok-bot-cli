@@ -44256,7 +44256,7 @@ var __webpack_modules__ = {
                 if (import.meta.main) {
                     await (0, agent_bundle_cli_entry__rspack_import_1.yA)({
                         commands,
-                        description: "Message Grok Bot from Codex, Claude Code, and Cursor. Codex/Claude tools use local sockets on the user's registered machines only (no remote transport); from the Grok Bot box, run gbot via Grok Bot Shell with a machineId.",
+                        description: "Hao's fork of grok-bot-cli. Message Grok Bot from Codex, Claude Code, and Cursor. Codex/Claude tools use local sockets on the user's registered machines only (no remote transport); from the Grok Bot box, run gbot via Grok Bot Shell with a machineId.",
                         execute,
                         name: "gbot",
                         render,

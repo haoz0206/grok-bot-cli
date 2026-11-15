@@ -2,6 +2,7 @@ node_modules/
 .worktrees/
 dist/
 .agent-bundle/
+.audit/
 .env
 .env.*
 tmp-agents/

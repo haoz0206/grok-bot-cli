@@ -1,18 +1,24 @@
-# grok-bot-cli
+# @haoz0206/grok-bot-cli
 
-[![npm version](https://img.shields.io/npm/v/grok-bot-cli.svg)](https://www.npmjs.com/package/grok-bot-cli)
+[![npm version](https://img.shields.io/npm/v/@haoz0206/grok-bot-cli.svg)](https://www.npmjs.com/package/@haoz0206/grok-bot-cli)
+
+Maintained fork of [ScriptedAlchemy/grok-bot-cli](https://github.com/ScriptedAlchemy/grok-bot-cli), distributed from [haoz0206/grok-bot-cli](https://github.com/haoz0206/grok-bot-cli). The upstream authors and MIT license are retained.
 
 Manage [Grok Bot](https://cursor.com/help/grok-bot/plans) agents, groups, and messages from your terminal.
 
-![Live create, group, send, and delete smoke test](https://raw.githubusercontent.com/ScriptedAlchemy/grok-bot-cli/main/demo/grok-bot-cli-demo.gif)
+Upstream demo of create, group, send, and delete. This is upstream evidence, not runtime verification of this fork.
 
-[Watch the MP4](https://github.com/ScriptedAlchemy/grok-bot-cli/blob/main/demo/grok-bot-cli-demo.mp4)
+![Upstream create, group, send, and delete smoke test](https://raw.githubusercontent.com/ScriptedAlchemy/grok-bot-cli/main/demo/grok-bot-cli-demo.gif)
+
+[Watch the upstream MP4](https://github.com/ScriptedAlchemy/grok-bot-cli/blob/main/demo/grok-bot-cli-demo.mp4)
 
 ## Install
 
 ```sh
-npm install --global grok-bot-cli
+npm install --global @haoz0206/grok-bot-cli
 ```
+
+The fork keeps the `gbot`, `grok-bot`, and `gbot-install` commands and the `gbot` plugin identity. Remove the upstream package from the same installation prefix before installing this fork to avoid command conflicts. Existing plugins with the same identity also need replacement. Data paths remain under `~/.grok-bot-cli/`; changing package ownership does not move or delete existing data.
 
 Requires Node.js 22.19.0+ and the Grok Bot desktop app on macOS, Linux, or Windows. Open Grok Bot and sign in once; `gbot` automatically uses the app's encrypted session and routing credentials. No token copying is required. If the app removes its cached gateway route while the cloud computer sleeps, the CLI uses the active account in `sand-secrets.json` to request a fresh route through `EnsureSandBox`. Signed-out and inactive saved accounts are never selected. Backend requests use the installed Grok Bot app version, read from the app's `desktop-status.json` (or the macOS app bundle); `SAND_CLIENT_VERSION` remains an explicit override. On Linux the app keeps its session under `~/.config/Grok Bot` (or `$XDG_CONFIG_HOME`); when it is stored in the system keyring, `gbot` reads the key with `secret-tool` (package `libsecret-tools`). On Windows the session lives under `%APPDATA%\\Grok Bot` and decrypts with the app's DPAPI-wrapped Safe Storage key.
 
@@ -309,14 +315,14 @@ Find a thread to answer with `codex_threads` (`query`, `activeWithin`, newest ac
 Install the committed bundle directly from GitHub without cloning or building it:
 
 ```sh
-codex plugin marketplace add ScriptedAlchemy/grok-bot-cli
+codex plugin marketplace add haoz0206/grok-bot-cli
 codex plugin add gbot@gbot-marketplace
 
-claude plugin marketplace add ScriptedAlchemy/grok-bot-cli
+claude plugin marketplace add haoz0206/grok-bot-cli
 claude plugin install gbot@gbot-marketplace
 ```
 
-Cursor users can add `https://github.com/ScriptedAlchemy/grok-bot-cli` as a
+Cursor users can add `https://github.com/haoz0206/grok-bot-cli` as a
 marketplace repository from Customize → Plugins. The repository-root host
 marketplaces all point at the committed `artifact/` bundle.
 
@@ -335,8 +341,13 @@ registered as `gbot`.
 
 `gbot-install install grokbot` stages the Cursor projection as a marketplace
 repository under `~/.grokbot/agent-bundle/marketplaces/gbot` (`GROK_BOT_HOME`
-overrides `~/.grokbot`). On the Grok Bot computer it also sideloads gbot into Grok
-Bot's existing clone of the `scriptedalchemy/plugins` marketplace: it adds `gbot/`
+overrides `~/.grokbot`). The sideload defaults below are inherited from upstream;
+this fork is not listed in `ScriptedAlchemy/plugins`. Use this fork's repository
+or npm artifact to install it. Pass `--no-sideload` to avoid writing into the
+upstream marketplace cache.
+
+On the Grok Bot computer, the default sideload writes gbot into Grok Bot's
+existing clone of the upstream `scriptedalchemy/plugins` marketplace: it adds `gbot/`
 and a `marketplace.json` entry under the clone commit Grok Bot already uses, and
 writes `plugins/cache/scriptedalchemy-plugins/gbot/<commit>/` with `.cache-complete`.
 Every path it writes is recorded in the install receipt, and `uninstall grokbot`
@@ -353,8 +364,10 @@ removes exactly those paths. `--json` reports the outcome in its `sideload` fiel
 repository; prefer `GROK_BOT_SIDELOAD_REPO`. The next install or uninstall removes
 the 0.12.3 sideload record. `gbot-install doctor --host grokbot` reports the Grok Bot
 plugin id (`AB7334`) and the sideload state (`AB7335`). Grok Bot keeps the sideloaded
-cache copy only while its account plugin listing names gbot; for a durable install,
-add gbot from the `ScriptedAlchemy/plugins` marketplace in Grok Bot.
+cache copy only while its account plugin listing names gbot. Upstream documents
+adding gbot from `ScriptedAlchemy/plugins` for a durable upstream installation;
+that marketplace does not distribute this fork, and sideloading alone does not
+establish a durable fork installation.
 
 `gbot_thread` returns a small receipt by default: deterministic `summary`, opaque
 `cursor`, `entryCount`, and `gapReset`.
@@ -401,6 +414,30 @@ gbot history --path
 `history` works offline. Use `--history-dir` / `GROK_BOT_HISTORY_DIR` to relocate,
 `--no-history` to skip one command. New dirs are `0700`, files `0600`. Conversation
 text is recorded as you typed it; gateway credentials and raw response metadata are not.
+
+## Set up fork releases
+
+The root `package.json` uses `publishConfig` to select the public npm registry and
+public access for `@haoz0206/grok-bot-cli`. Publish only through
+[`.github/workflows/release.yml`](.github/workflows/release.yml), using the existing
+Changesets flow and GitHub OIDC. The package release script is a workflow entrypoint.
+
+Before a release, complete the npm-side package and trusted publisher setup for
+`@haoz0206/grok-bot-cli` with these GitHub fields:
+
+| Field | Value |
+| --- | --- |
+| Owner | `haoz0206` |
+| Repository | `grok-bot-cli` |
+| Workflow filename | `release.yml` |
+| Environment | Leave unset |
+| Permission | Allow `npm publish` |
+
+[npm's trust documentation](https://docs.npmjs.com/cli/v11/commands/npm-trust/)
+requires the package to already exist in the registry. A new package may therefore
+remain blocked on npm-side bootstrap before trusted publishing can be configured.
+Repository configuration does not verify npm account settings or complete that setup.
+Verify the Release workflow and the published registry version before updating installations.
 
 ## License
 

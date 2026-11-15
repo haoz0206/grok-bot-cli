@@ -1,7 +1,7 @@
 {
-  "name": "grok-bot-cli",
+  "name": "@haoz0206/grok-bot-cli",
   "version": "0.12.5",
-  "description": "CLI and Agent Bundle plugin for Grok Bot agents and groups: create, update, message, inspect threads, and automate cleanup",
+  "description": "Hao's fork of grok-bot-cli: CLI and Agent Bundle plugin for Grok Bot agents, groups, and messaging",
   "type": "module",
   "bin": {
     "gbot": "./dist/bin/gbot.mjs",
@@ -10,6 +10,10 @@
   },
   "engines": {
     "node": ">=22.19.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
     "build": "agent-bundle build",
@@ -28,11 +32,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/ScriptedAlchemy/grok-bot-cli.git"
+    "url": "git+https://github.com/haoz0206/grok-bot-cli.git"
   },
-  "homepage": "https://github.com/ScriptedAlchemy/grok-bot-cli#readme",
+  "homepage": "https://github.com/haoz0206/grok-bot-cli#readme",
   "bugs": {
-    "url": "https://github.com/ScriptedAlchemy/grok-bot-cli/issues"
+    "url": "https://github.com/haoz0206/grok-bot-cli/issues"
   },
   "author": "Zack Jackson (https://github.com/ScriptedAlchemy)",
   "license": "MIT",
