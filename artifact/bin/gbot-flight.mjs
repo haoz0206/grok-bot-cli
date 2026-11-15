@@ -8343,7 +8343,7 @@ var __webpack_modules__ = {
             return (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_2.g.Result, {
                 value: (0, _core_format_js__rspack_import_3.eh)(rec),
                 children: (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_2.g.Text, {
-                    children: `Created bot ${rec.name} (${rec.id})`
+                    children: (0, _core_format_js__rspack_import_3.ZB)(`Created bot ${rec.name} (${rec.id})`)
                 })
             });
         }
@@ -8403,7 +8403,7 @@ var __webpack_modules__ = {
             return (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_3.g.Result, {
                 value: (0, _core_format_js__rspack_import_4.eh)(rec),
                 children: (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_3.g.Text, {
-                    children: `Deleted ${rec.isGroup ? 'group' : 'bot'} ${rec.name} (${rec.id})`
+                    children: (0, _core_format_js__rspack_import_4.ZB)(`Deleted ${rec.isGroup ? 'group' : 'bot'} ${rec.name} (${rec.id})`)
                 })
             });
         }
@@ -8597,7 +8597,7 @@ var __webpack_modules__ = {
             return (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_3.g.Result, {
                 value: (0, _core_format_js__rspack_import_4.eh)(rec),
                 children: (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_3.g.Text, {
-                    children: `Updated ${rec.isGroup ? 'group' : 'bot'} ${rec.name} (${rec.id})`
+                    children: (0, _core_format_js__rspack_import_4.ZB)(`Updated ${rec.isGroup ? 'group' : 'bot'} ${rec.name} (${rec.id})`)
                 })
             });
         }
@@ -10295,7 +10295,7 @@ var __webpack_modules__ = {
             return (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_3.g.Result, {
                 value: (0, _core_format_js__rspack_import_4.eh)(rec),
                 children: (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_3.g.Text, {
-                    children: `Added to ${rec.name}. Members: ${rec.memberIds.length}`
+                    children: (0, _core_format_js__rspack_import_4.ZB)(`Added to ${rec.name}. Members: ${rec.memberIds.length}`)
                 })
             });
         }
@@ -10375,7 +10375,7 @@ var __webpack_modules__ = {
             return (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_3.g.Result, {
                 value: (0, _core_format_js__rspack_import_4.eh)(rec),
                 children: (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_3.g.Text, {
-                    children: `Created group ${rec.name} (${rec.id}) with ${rec.memberIds.length} members`
+                    children: (0, _core_format_js__rspack_import_4.ZB)(`Created group ${rec.name} (${rec.id}) with ${rec.memberIds.length} members`)
                 })
             });
         }
@@ -10437,7 +10437,7 @@ var __webpack_modules__ = {
             return (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_3.g.Result, {
                 value: (0, _core_format_js__rspack_import_4.eh)(deleted),
                 children: (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_3.g.Text, {
-                    children: `Deleted group ${deleted.name} (${deleted.id})`
+                    children: (0, _core_format_js__rspack_import_4.ZB)(`Deleted group ${deleted.name} (${deleted.id})`)
                 })
             });
         }
@@ -10677,7 +10677,7 @@ var __webpack_modules__ = {
             return (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_3.g.Result, {
                 value: (0, _core_format_js__rspack_import_4.eh)(rec),
                 children: (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_3.g.Text, {
-                    children: `Removed from ${rec.name}. Members: ${rec.memberIds.length}`
+                    children: (0, _core_format_js__rspack_import_4.ZB)(`Removed from ${rec.name}. Members: ${rec.memberIds.length}`)
                 })
             });
         }
@@ -10745,7 +10745,7 @@ var __webpack_modules__ = {
             return (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_3.g.Result, {
                 value: (0, _core_format_js__rspack_import_4.eh)(rec),
                 children: (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_3.g.Text, {
-                    children: `Updated ${rec.name}. Members: ${rec.memberIds.length}`
+                    children: (0, _core_format_js__rspack_import_4.ZB)(`Updated ${rec.name}. Members: ${rec.memberIds.length}`)
                 })
             });
         }
@@ -10829,7 +10829,7 @@ var __webpack_modules__ = {
             return (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_3.g.Result, {
                 value: (0, _core_format_js__rspack_import_4.eh)(rec),
                 children: (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_3.g.Text, {
-                    children: `Updated group ${rec.name} (${rec.id})`
+                    children: (0, _core_format_js__rspack_import_4.ZB)(`Updated group ${rec.name} (${rec.id})`)
                 })
             });
         }
@@ -10938,6 +10938,7 @@ var __webpack_modules__ = {
         var _core_sender_prefix_js__rspack_import_3 = __webpack_require__("./src/core/sender-prefix.js");
         var _core_codex_contract_js__rspack_import_4 = __webpack_require__("./src/core/codex/contract.js");
         var _core_history_js__rspack_import_5 = __webpack_require__("./src/core/history.js");
+        var _core_format_js__rspack_import_10 = __webpack_require__("./src/core/format.js");
         var _shared_js__rspack_import_6 = __webpack_require__("./src/cli/_shared.ts");
         const config = {
             description: 'Send a message to a Grok Bot bot or group by name or id.',
@@ -11130,11 +11131,19 @@ var __webpack_modules__ = {
             } catch (error) {
                 value = (0, _core_codex_contract_js__rspack_import_4.DG)(error);
             }
-            const text = value.exitCode === 0 ? `Sent to ${value.kind} ${value.name} (${value.id})${value.messageId ? ` message ${value.messageId}` : ''}; envelope ${value.envelopeId}` : value.error;
+            let text;
+            if (value.exitCode === 0) {
+                const status = value.delivery === 'accepted' ? 'Sent' : (0, _core_format_js__rspack_import_10.Ks)(value);
+                const receipt = value.messageId ? ` message ${value.messageId}` : '';
+                const hint = value.delivery === 'unknown' ? '; check the thread before resending' : '';
+                text = `${status} to ${value.kind} ${value.name} (${value.id})${receipt}${hint}; envelope ${value.envelopeId}`;
+            } else {
+                text = value.error;
+            }
             return (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_9.g.Result, {
                 value: value,
                 children: (0, react_jsx_runtime__rspack_import_0.jsx)(_agent_bundle_runtime__rspack_import_9.g.Text, {
-                    children: text
+                    children: (0, _core_format_js__rspack_import_10.ZB)(text, true)
                 })
             });
         }
@@ -11664,38 +11673,6 @@ var __webpack_modules__ = {
                 ]
             };
         }
-        async function discoverModelProviders() {
-            const providers = new Set();
-            let threadCount = 0;
-            let cursor;
-            let complete = false;
-            for(let page = 0; page < 400; page++){
-                const out = await (0, _codex_bridge_js__rspack_import_0.X$)({
-                    limit: 25,
-                    cursor,
-                    modelProviders: []
-                });
-                threadCount += out.threads.length;
-                for (const thread of out.threads){
-                    if (typeof thread.modelProvider === 'string' && thread.modelProvider) {
-                        providers.add(thread.modelProvider);
-                    }
-                }
-                if (out.nextCursor == null || typeof out.nextCursor !== 'string') {
-                    complete = true;
-                    break;
-                }
-                cursor = out.nextCursor;
-            }
-            return {
-                providers: [
-                    ...providers
-                ].sort(),
-                source: 'thread/list-distinct',
-                threadCount,
-                complete
-            };
-        }
         async function appServerReadThread({ threadId, limit, full = false, cursor }) {
             limit ??= full ? 2000 : 100;
             const bare = (0, _thread_ids_js__rspack_import_3.NM)(threadId);
@@ -12160,7 +12137,6 @@ var __webpack_modules__ = {
         __webpack_require__.d(__webpack_exports__, {
             Jf: ()=>appServerReadThread,
             OI: ()=>appServerListThreads,
-            X: ()=>discoverModelProviders,
             aI: ()=>appServerSearchThreads,
             dM: ()=>appServerStatusProbe,
             qL: ()=>appServerUnarchiveThread
@@ -12541,12 +12517,10 @@ var __webpack_modules__ = {
     return undefined;
   };
   const rows = Array.from(document.querySelectorAll(${JSON.stringify(SELECTORS.threadRow)}));
-  const seen = new Set();
   const out = [];
   for (const row of rows) {
     const threadId = row.getAttribute(${JSON.stringify(ATTR.threadId)}) || '';
-    if (!threadId || seen.has(threadId)) continue;
-    seen.add(threadId);
+    if (!threadId) continue;
     const project = projectFor(row);
     out.push({
       threadId,
@@ -13417,8 +13391,7 @@ var __webpack_modules__ = {
             unarchiveThread: _app_server_fallback_js__rspack_import_2.qL,
             statusProbe: _app_server_fallback_js__rspack_import_2.dM,
             listRemoteThreads: _remote_threads_js__rspack_import_5.Hx,
-            listHosts: _remote_threads_js__rspack_import_5.Kl,
-            discoverModelProviders: _app_server_fallback_js__rspack_import_2.X
+            listHosts: _remote_threads_js__rspack_import_5.Kl
         };
         const MERGED_LIST_CURSOR = 'desktop-merged-list-v1:';
         const MERGED_SEARCH_CURSOR = 'desktop-merged-search-v1:';
@@ -13472,6 +13445,9 @@ var __webpack_modules__ = {
                 } else {
                     snapshot = await this.#buildListSnapshot(options, filters);
                 }
+                if (snapshot.kind === 'list' && !snapshot.reachable) {
+                    throw new _errors_js__rspack_import_3.sO(snapshot.warnings[0] ?? 'ChatGPT Desktop listThreads: CDP and app-server unreachable');
+                }
                 return this.#pageSnapshot(snapshot, offset, limit, options, MERGED_LIST_CURSOR);
             }
             #pageSnapshot(snapshot, offset, limit, options, prefix, query) {
@@ -13496,7 +13472,7 @@ var __webpack_modules__ = {
                     } : {}
                 };
                 for (const source of snapshot.rows.slice(offset, offset + limit)){
-                    let row = source;
+                    let row = (0, _payload_budget_js__rspack_import_8.eX)(source);
                     const candidate = [
                         ...rows,
                         row
@@ -13566,9 +13542,9 @@ var __webpack_modules__ = {
                 const modelProviders = modelProvidersFromFilter(options.modelProvider);
                 let appSucceeded = false;
                 try {
-                    for(let page = 0; page < 400; page++){
+                    for(let page = 0; page < 3200; page++){
                         const out = await this.#fallbacks.listThreads({
-                            limit: 200,
+                            limit: 25,
                             cursor: appCursor,
                             modelProviders
                         });
@@ -13583,7 +13559,7 @@ var __webpack_modules__ = {
                         seenCursors.add(out.nextCursor);
                         appCursor = out.nextCursor;
                     }
-                    if (!appComplete) warnings.push('App-server inventory stopped after 400 pages');
+                    if (!appComplete) warnings.push('App-server inventory stopped after 3200 pages');
                 } catch (error) {
                     warnings.push(`App-server list failed: ${error instanceof Error ? error.message : String(error)}`);
                 }
@@ -13594,12 +13570,10 @@ var __webpack_modules__ = {
                     cdpList = await this.#cdp.listThreads({
                         limit: 200
                     });
+                    if (cdpList.warnings) warnings.push(...cdpList.warnings);
                 } catch (error) {
                     if (isCdpFailure(error)) this.#cdpConnected = false;
                     else warnings.push(`CDP list failed: ${error instanceof Error ? error.message : String(error)}`);
-                }
-                if (!appRows.length && !cdpList && !remotes.length) {
-                    throw new _errors_js__rspack_import_3.sO(warnings[0] ?? 'ChatGPT Desktop listThreads: CDP and app-server unreachable');
                 }
                 const appList = {
                     backend: 'app-server',
@@ -13639,41 +13613,50 @@ var __webpack_modules__ = {
                         ])
                 })).digest('base64url');
                 const snapshot = {
+                    kind: 'list',
                     fingerprint,
                     port: this.#port,
                     filters,
                     createdAt: Date.now(),
                     rows,
                     backend: merged.backend,
-                    warnings
+                    warnings,
+                    appSucceeded,
+                    appComplete,
+                    reachable: appSucceeded || cdpList !== null || remotes.length > 0,
+                    cdpHasRows: Boolean(cdpList?.threads.length),
+                    modelProviders: [
+                        ...new Set([
+                            ...appRows,
+                            ...rows
+                        ].map((thread)=>thread.modelProvider).filter((value)=>Boolean(value)))
+                    ].sort()
                 };
                 for (const [key, value] of this.#listSnapshots){
                     if (Date.now() - value.createdAt > 15 * 60000 || this.#listSnapshots.size >= 8) this.#listSnapshots.delete(key);
                 }
-                this.#listSnapshots.set(fingerprint, snapshot);
+                if (snapshot.reachable) this.#listSnapshots.set(fingerprint, snapshot);
                 return snapshot;
             }
             async listHosts() {
-                const remotes = this.#listRemotes();
-                const cdpList = typeof this.#cdp.listThreads === 'function' ? await this.#tryCdpList({
-                    limit: 200
-                }) : null;
-                const cdpRows = cdpList?.threads ?? [];
-                let localThreadCount = 0;
-                let appSucceeded = false;
-                try {
-                    const local = await this.#fallbacks.listThreads({
-                        limit: 25,
-                        modelProviders: []
-                    });
-                    appSucceeded = true;
-                    localThreadCount = local.threads.length;
-                } catch  {
-                    localThreadCount = 0;
+                const filters = JSON.stringify({
+                    host: 'all',
+                    modelProvider: null,
+                    project: null,
+                    groupBy: null
+                });
+                const cached = [
+                    ...this.#listSnapshots.values()
+                ].find((snapshot)=>snapshot.kind === 'list' && snapshot.port === this.#port && snapshot.filters === filters && Date.now() - snapshot.createdAt < 15 * 60000);
+                const inventory = cached?.kind === 'list' ? cached : await this.#buildListSnapshot({}, filters);
+                const counts = new Map();
+                for (const thread of inventory.rows){
+                    const hostId = thread.location === 'remote' ? thread.hostId || 'unknown-remote' : 'local';
+                    counts.set(hostId, (counts.get(hostId) ?? 0) + 1);
                 }
                 const listHosts = this.#fallbacks.listHosts ?? _remote_threads_js__rspack_import_5.Kl;
                 const fromState = listHosts(process.env, {
-                    localThreadCount
+                    localThreadCount: counts.get('local') ?? 0
                 });
                 const byId = new Map(fromState.map((host)=>[
                         host.hostId,
@@ -13681,123 +13664,50 @@ var __webpack_modules__ = {
                             ...host
                         }
                     ]));
-                for (const thread of remotes){
-                    const existing = byId.get(thread.hostId);
-                    if (existing) {
-                        byId.set(thread.hostId, {
-                            ...existing,
-                            hostName: existing.hostName ?? thread.hostName
-                        });
-                    } else {
-                        byId.set(thread.hostId, {
-                            hostId: thread.hostId,
-                            hostName: thread.hostName,
-                            location: 'remote',
-                            threadCount: 0
-                        });
-                    }
-                }
-                for (const thread of cdpRows){
-                    if (thread.location !== 'remote' || !thread.hostId) continue;
-                    if (!byId.has(thread.hostId)) byId.set(thread.hostId, {
-                        hostId: thread.hostId,
-                        hostName: thread.hostName ?? null,
-                        location: 'remote',
-                        threadCount: 0
+                for (const thread of inventory.rows){
+                    const location = thread.location ?? 'local';
+                    const hostId = location === 'remote' ? thread.hostId || 'unknown-remote' : 'local';
+                    const existing = byId.get(hostId);
+                    byId.set(hostId, {
+                        hostId,
+                        hostName: existing?.hostName ?? thread.hostName ?? (location === 'local' ? 'local' : null),
+                        location,
+                        threadCount: counts.get(hostId) ?? 0
                     });
                 }
-                const hostsSource = 'local+remote-thread-summaries-v3+managed-connections' + (cdpRows.length ? '+cdp' : '');
-                const remoteCounts = new Map();
-                const remoteInventory = finalizeThreadList({
-                    backend: cdpRows.length ? 'cdp' : 'remote-state',
-                    limit: 10000,
-                    threads: cdpRows.filter((thread)=>thread.location === 'remote')
-                }, {
-                    limit: 10000,
-                    remotes
-                });
-                for (const thread of remoteInventory.threads){
-                    if (thread.hostId) remoteCounts.set(thread.hostId, (remoteCounts.get(thread.hostId) ?? 0) + 1);
-                }
-                const withCounts = [
+                const hosts = [
                     ...byId.values()
-                ].map((host)=>host.hostId === 'local' ? {
+                ].map((host)=>{
+                    const counted = {
                         ...host,
-                        threadCount: localThreadCount
-                    } : {
-                        ...host,
-                        threadCount: remoteCounts.get(host.hostId) ?? host.threadCount
-                    }).sort((a, b)=>{
+                        threadCount: counts.get(host.hostId) ?? host.threadCount
+                    };
+                    if (!counted.hostName) return counted;
+                    const name = (0, _payload_budget_js__rspack_import_8.aA)(counted.hostName);
+                    return {
+                        ...counted,
+                        hostName: name.title,
+                        ...name.titleTruncated ? {
+                            hostNameTruncated: true
+                        } : {}
+                    };
+                }).sort((a, b)=>{
                     if (a.hostId === 'local') return -1;
                     if (b.hostId === 'local') return 1;
                     return a.hostId.localeCompare(b.hostId);
                 });
-                let modelProviders = [];
-                let modelProvidersSource = 'thread/list-distinct';
-                const warnings = [];
-                try {
-                    const discover = this.#fallbacks.discoverModelProviders ?? _app_server_fallback_js__rspack_import_2.X;
-                    const discovered = await discover();
-                    modelProviders = [
-                        ...discovered.providers
-                    ];
-                    modelProvidersSource = discovered.source;
-                    if (typeof discovered.threadCount === 'number') localThreadCount = discovered.threadCount;
-                    if (discovered.complete === false) warnings.push('Provider discovery stopped before the final app-server page');
-                } catch (error) {
-                    warnings.push(`Model provider discovery failed: ${error instanceof Error ? error.message : String(error)}`);
-                    modelProviders = [
-                        ...new Set(remotes.map((thread)=>thread.modelProvider).filter((value)=>typeof value === 'string' && Boolean(value)))
-                    ].sort();
-                    modelProvidersSource = 'remote-summaries-distinct';
-                }
-                modelProviders = [
-                    ...new Set([
-                        ...modelProviders,
-                        ...remotes.map((thread)=>thread.modelProvider).filter((value)=>Boolean(value))
-                    ])
-                ].sort();
-                let inventoryCounts = null;
-                try {
-                    const filters = JSON.stringify({
-                        host: 'all',
-                        modelProvider: null,
-                        project: null,
-                        groupBy: null
-                    });
-                    const cached = [
-                        ...this.#listSnapshots.values()
-                    ].find((snapshot)=>snapshot.port === this.#port && snapshot.filters === filters && Date.now() - snapshot.createdAt < 15 * 60000);
-                    const inventory = cached ?? await this.#buildListSnapshot({}, filters);
-                    inventoryCounts = new Map();
-                    for (const thread of inventory.rows){
-                        const hostId = thread.location === 'remote' ? thread.hostId ?? 'unknown-remote' : 'local';
-                        inventoryCounts.set(hostId, (inventoryCounts.get(hostId) ?? 0) + 1);
-                    }
-                    warnings.push(...inventory.warnings);
-                } catch (error) {
-                    warnings.push(`Merged inventory count failed: ${error instanceof Error ? error.message : String(error)}`);
+                const warnings = [
+                    ...inventory.warnings
+                ];
+                if (inventory.appSucceeded && !inventory.appComplete) {
+                    warnings.push('Provider discovery stopped before the final app-server page');
                 }
                 return {
-                    hosts: withCounts.map((host)=>{
-                        const counted = {
-                            ...host,
-                            threadCount: inventoryCounts?.get(host.hostId) ?? (host.hostId === 'local' ? localThreadCount : host.threadCount)
-                        };
-                        if (!counted.hostName) return counted;
-                        const name = (0, _payload_budget_js__rspack_import_8.aA)(counted.hostName);
-                        return {
-                            ...counted,
-                            hostName: name.title,
-                            ...name.titleTruncated ? {
-                                hostNameTruncated: true
-                            } : {}
-                        };
-                    }),
-                    hostsSource,
-                    modelProviders,
-                    modelProvidersSource,
-                    backend: appSucceeded ? cdpRows.length ? remotes.length ? 'app-server+cdp+remote-state' : 'app-server+cdp' : remotes.length ? 'app-server+remote-state' : 'app-server' : cdpRows.length ? remotes.length ? 'cdp+remote-state' : 'cdp' : 'remote-state',
+                    hosts,
+                    hostsSource: 'local+remote-thread-summaries-v3+managed-connections' + (inventory.cdpHasRows ? '+cdp' : ''),
+                    modelProviders: inventory.modelProviders,
+                    modelProvidersSource: inventory.appSucceeded ? 'thread/list-distinct' : 'remote-summaries-distinct',
+                    backend: inventory.backend,
                     ...warnings.length ? {
                         warnings
                     } : {}
@@ -13903,6 +13813,7 @@ var __webpack_modules__ = {
                         ])
                 })).digest('base64url');
                 const snapshot = {
+                    kind: 'search',
                     fingerprint,
                     port: this.#port,
                     filters,
@@ -14131,7 +14042,7 @@ var __webpack_modules__ = {
                 if (!projectMatches(thread, project)) return false;
                 return true;
             });
-            const limited = filtered.slice(0, limit).map(_payload_budget_js__rspack_import_8.eX);
+            const limited = filtered.slice(0, limit);
             const result = {
                 backend: remotes.length ? base.backend === 'app-server+cdp' ? 'app-server+cdp+remote-state' : base.backend === 'app-server' ? 'app-server+remote-state' : base.backend === 'cdp' ? 'cdp+remote-state' : base.backend : base.backend,
                 limit,
@@ -15875,16 +15786,15 @@ var __webpack_modules__ = {
         };
         const metaLength = (entry)=>entry.id.length + entry.kind.length + (entry.role?.length ?? 0);
         const transcriptEntries = (transcript)=>{
-            const rows = unwrapEntries(transcript);
-            let remaining = TRANSCRIPT_TOTAL_MAX;
-            return rows.map((raw)=>{
-                const entry = threadEntry(raw);
-                const allowText = Math.max(0, Math.min(entry.text.length, remaining - metaLength(entry)));
+            const entries = unwrapEntries(transcript).map(threadEntry);
+            let remaining = Math.max(0, TRANSCRIPT_TOTAL_MAX - entries.reduce((length, entry)=>length + metaLength(entry), 0));
+            return entries.map((entry)=>{
+                const allowText = Math.min(entry.text.length, remaining);
                 if (allowText < entry.text.length) {
                     entry.text = allowText <= 0 ? '' : entry.text.slice(0, allowText);
                     entry.truncated = entry.fullLength > entry.text.length;
                 }
-                remaining = Math.max(0, remaining - metaLength(entry) - entry.text.length);
+                remaining -= entry.text.length;
                 return entry;
             });
         };
@@ -26868,7 +26778,7 @@ var __webpack_modules__ = {
                 const onMessage = (msg)=>{
                     if (msg.id != null && msg.method) {
                         if (serverRequests.has(msg.id)) return failProtocol("duplicate pending server request id");
-                        if (serverRequests.size >= CODEX_MAX_REQUESTS || refused.length >= CODEX_MAX_REQUESTS || client.deferred.length >= CODEX_MAX_REQUESTS) {
+                        if (serverRequests.size >= CODEX_MAX_REQUESTS || client.answerServerRequests && refused.length >= CODEX_MAX_REQUESTS || client.deferred.length >= CODEX_MAX_REQUESTS) {
                             return failAll(new Error("Codex remembered server request limit exceeds " + CODEX_MAX_REQUESTS));
                         }
                         const entry = {
@@ -26879,8 +26789,8 @@ var __webpack_modules__ = {
                         };
                         serverRequests.set(msg.id, entry);
                         dispatch("serverRequest", msg);
-                        if (closed) return;
-                        let answered = client.answerServerRequests;
+                        if (closed || !client.answerServerRequests || !serverRequests.has(msg.id)) return;
+                        let answered = true;
                         let defer = false;
                         if (answered) {
                             const params = msg.params && typeof msg.params === "object" && !Array.isArray(msg.params) ? msg.params : null;
@@ -28144,7 +28054,7 @@ var __webpack_modules__ = {
                 'thread/turns/list',
                 'thread/items/list'
             ].includes(method)) throw new RangeError('Unsupported history method');
-            conversationId(threadId);
+            threadId = conversationId(threadId);
             const client = session.client;
             let cursor;
             const seen = new Set();
@@ -28177,7 +28087,7 @@ var __webpack_modules__ = {
             throw new Error('History coverage incomplete: 20 page limit');
         }
         async function openCodexConversation(threadId, options = {}) {
-            conversationId(threadId);
+            threadId = conversationId(threadId);
             const { env = process.env, expectedCwd, signal, onEvent } = options;
             (0, _codex_bridge_js__rspack_import_2.$3)(threadId, env);
             if (signal !== undefined && !(signal instanceof AbortSignal)) throw new TypeError('signal must be an AbortSignal');
@@ -28191,6 +28101,7 @@ var __webpack_modules__ = {
             const { client } = session;
             const events = [];
             const acceptedTurns = new Set();
+            const requestIds = new Set();
             const wake = new Set();
             let bytes = 0, overflow = false, disconnected = client.closed, closed = false;
             const record = (event)=>{
@@ -28215,7 +28126,12 @@ var __webpack_modules__ = {
             };
             const observe = (kind)=>(message)=>{
                     const p = message.params;
-                    if ((p?.threadId ?? p?.thread_id) !== threadId) return;
+                    if (kind === 'notification' && message.method === 'serverRequest/resolved') {
+                        if (!requestIds.delete(p?.requestId)) return;
+                    } else {
+                        if ((p?.threadId ?? p?.thread_id) !== threadId) return;
+                        if (kind === 'interaction') requestIds.add(message.id);
+                    }
                     return record({
                         kind,
                         ...message
@@ -28236,6 +28152,7 @@ var __webpack_modules__ = {
                 if (closed) return;
                 closed = true;
                 for (const unsubscribe of unsubs)unsubscribe();
+                requestIds.clear();
                 for (const listener of wake)listener();
                 if (!options.session) client.close();
             };
@@ -28957,9 +28874,6 @@ var __webpack_modules__ = {
         const WRAPPER_LOG_FILENAME = "codex-desktop-to-daemon.log";
         const ENV_LOG_FILENAME = "codex-desktop-shared-daemon-env.log";
         const STANDALONE_REAL_SUFFIX = (0, node_path__rspack_import_3.join)("packages", "standalone", "current", "bin", "codex");
-        function codexHomeDir(env = process.env) {
-            return env.CODEX_HOME || join(env.HOME || homedir(), ".codex");
-        }
         function userHomeDir(env = process.env) {
             return env.HOME || (0, node_os__rspack_import_2.homedir)();
         }
@@ -29005,7 +28919,14 @@ var __webpack_modules__ = {
             }
             return appServer && !daemon && !proxy && !generate && !oneShot;
         }
-        function renderWrapperScript({ realPath, bridgePath, wrapperLogPath, codexHome, bridgeLogPath }) {
+        const shellQuote = (value)=>`'${value.replaceAll("'", "'\\''")}'`;
+        const xmlText = (value)=>value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&apos;");
+        const shellDefault = (name, override, value, exported = false)=>`DEFAULT_${name}=${shellQuote(value)}\n${exported ? "export " : ""}${name}="\${${override}:-$DEFAULT_${name}}"`;
+        const legacyShellDefault = (name, override, value, exported = false)=>`${exported ? "export " : ""}${name}="\${${override}:-${value}}"`;
+        function renderWrapperScript(paths) {
+            return wrapperScript(paths, shellDefault);
+        }
+        function wrapperScript({ realPath, bridgePath, wrapperLogPath, codexHome, bridgeLogPath }, defaultPath) {
             return `#!/bin/bash
 # Installed by \`gbot codex desktop-shim install\`. Rewrites ChatGPT Desktop's
 # \`codex ... app-server\` spawn into a stdio<->WebSocket bridge onto the managed
@@ -29021,12 +28942,12 @@ var __webpack_modules__ = {
 # half-consumed stdin or dirty stdout. Bridge exit 0 means it served the session. Never touches
 # Desktop binaries or its private tool pipe.
 set -u
-REAL="\${CODEX_DESKTOP_WRAPPER_REAL:-${realPath}}"
-BRIDGE="\${CODEX_DESKTOP_BRIDGE:-${bridgePath}}"
-export CODEX_HOME="\${CODEX_HOME:-${codexHome}}"
+${defaultPath("REAL", "CODEX_DESKTOP_WRAPPER_REAL", realPath)}
+${defaultPath("BRIDGE", "CODEX_DESKTOP_BRIDGE", bridgePath)}
+${defaultPath("CODEX_HOME", "CODEX_HOME", codexHome, true)}
 SOCK="\${CODEX_APP_SERVER_SOCK:-$CODEX_HOME/app-server-control/app-server-control.sock}"
-BRIDGE_LOG="\${CODEX_STDIO_BRIDGE_LOG:-${bridgeLogPath}}"
-LOG="\${CODEX_DESKTOP_WRAPPER_LOG:-${wrapperLogPath}}"
+${defaultPath("BRIDGE_LOG", "CODEX_STDIO_BRIDGE_LOG", bridgeLogPath)}
+${defaultPath("LOG", "CODEX_DESKTOP_WRAPPER_LOG", wrapperLogPath)}
 export CODEX_APP_SERVER_SOCK="$SOCK"
 export CODEX_STDIO_BRIDGE_LOG="$BRIDGE_LOG"
 ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
@@ -29093,7 +29014,10 @@ echo "codex-desktop-to-daemon: no runnable codex found" >&2
 exit 1
 `;
         }
-        function renderEnvScript({ wrapperPath, realPath, envLogPath, codexHome }) {
+        function renderEnvScript(paths) {
+            return envScript(paths, shellQuote);
+        }
+        function envScript({ wrapperPath, realPath, envLogPath, codexHome }, quote) {
             return `#!/bin/bash
 # Installed by \`gbot codex desktop-shim install\`. Re-applies the GUI-domain env
 # so ChatGPT.app inherits CODEX_CLI_PATH after login, then best-effort starts the
@@ -29101,10 +29025,10 @@ exit 1
 # daemon upkeep). No -e: every step is best-effort so login never breaks.
 # Revert: \`gbot codex desktop-shim uninstall\`.
 set -u
-WRAPPER="${wrapperPath}"
-REAL="${realPath}"
-LOG="${envLogPath}"
-CODEX_HOME_DIR="${codexHome}"
+WRAPPER=${quote(wrapperPath)}
+REAL=${quote(realPath)}
+LOG=${quote(envLogPath)}
+CODEX_HOME_DIR=${quote(codexHome)}
 # One CODEX_HOME for the GUI domain and this script's own daemon start, so the
 # daemon that is kept up is the one the wrapper bridges to.
 export CODEX_HOME="$CODEX_HOME_DIR"
@@ -29134,17 +29058,20 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
 } >>"$LOG" 2>&1
 `;
         }
-        function renderPlist({ envScriptPath, label = SHIM_LABEL }) {
+        function renderPlist(paths) {
+            return plist(paths, xmlText);
+        }
+        function plist({ envScriptPath, label = SHIM_LABEL }, text) {
             return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
 \t<key>Label</key>
-\t<string>${label}</string>
+\t<string>${text(label)}</string>
 \t<key>ProgramArguments</key>
 \t<array>
 \t\t<string>/bin/bash</string>
-\t\t<string>${envScriptPath}</string>
+\t\t<string>${text(envScriptPath)}</string>
 \t</array>
 \t<key>RunAtLoad</key>
 \t<true/>
@@ -29182,11 +29109,6 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             (0, node_fs__rspack_import_1.chmodSync)(path, 493);
         }
         function isExecutable(path) {
-            try {
-                (0, node_fs__rspack_import_1.statSync)(path);
-            } catch  {
-                return false;
-            }
             try {
                 return ((0, node_fs__rspack_import_1.statSync)(path).mode & 73) !== 0;
             } catch  {
@@ -29286,23 +29208,64 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             });
             const warnings = [];
             const removed = [];
-            for (const path of [
-                paths.wrapperPath,
-                paths.bridgePath,
-                paths.envScriptPath
-            ]){
-                const existed = fileExists(path);
+            const artifacts = [
+                [
+                    paths.wrapperPath,
+                    [
+                        renderWrapperScript(paths),
+                        wrapperScript(paths, legacyShellDefault)
+                    ]
+                ],
+                [
+                    paths.bridgePath,
+                    [
+                        _desktop_shim_bridge_js__rspack_import_4.w.endsWith("\n") ? _desktop_shim_bridge_js__rspack_import_4.w : `${_desktop_shim_bridge_js__rspack_import_4.w}\n`
+                    ]
+                ],
+                [
+                    paths.envScriptPath,
+                    [
+                        renderEnvScript(paths),
+                        envScript(paths, (value)=>`"${value}"`)
+                    ]
+                ],
+                ...platform === "darwin" ? [
+                    [
+                        paths.plistPath,
+                        [
+                            renderPlist(paths),
+                            plist(paths, (value)=>value)
+                        ]
+                    ]
+                ] : []
+            ];
+            const owned = new Set();
+            for (const [path, contents] of artifacts){
                 try {
-                    if ((0, node_fs__rspack_import_1.rmSync)(path, {
-                        force: true
-                    }) === undefined && fileExists(path)) warnings.push(`could not remove ${path}`);
-                    else if (existed && !fileExists(path)) removed.push(path);
+                    if ((0, node_fs__rspack_import_1.lstatSync)(path).isFile() && contents.includes((0, node_fs__rspack_import_1.readFileSync)(path, "utf8"))) owned.add(path);
+                    else warnings.push(`preserving unrecognized or modified artifact ${path}`);
                 } catch (error) {
-                    warnings.push(`could not remove ${path} (${error instanceof Error ? error.message : String(error)})`);
+                    if (error.code !== "ENOENT") warnings.push(`could not inspect ${path} (${error instanceof Error ? error.message : String(error)}); preserving it`);
                 }
             }
-            let plistRemoved = false;
-            if (platform === "darwin") {
+            const guiValue = (key)=>{
+                try {
+                    const out = runBestEffort(runner, warnings, `launchctl getenv ${key}`, "launchctl", [
+                        "getenv",
+                        key
+                    ]);
+                    return out && !out.error && out.status === 0 && typeof out.stdout === "string" ? out.stdout.replace(/\r?\n$/, "") : null;
+                } catch (error) {
+                    warnings.push(`launchctl getenv ${key} failed (${error instanceof Error ? error.message : String(error)}); preserving GUI environment`);
+                    return null;
+                }
+            };
+            let clearCli = false, clearDaemon = false;
+            if (platform === "darwin" && owned.has(paths.wrapperPath)) {
+                clearCli = guiValue("CODEX_CLI_PATH") === paths.wrapperPath;
+                clearDaemon = guiValue("CODEX_APP_SERVER_USE_LOCAL_DAEMON") === "1";
+            }
+            if (platform === "darwin" && owned.has(paths.plistPath)) {
                 const uid = typeof process.getuid === "function" ? process.getuid() : null;
                 if (uid !== null && uid !== undefined) {
                     runBestEffort(runner, warnings, "launchctl bootout", "launchctl", [
@@ -29310,29 +29273,25 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                         `gui/${uid}/${paths.label}`
                     ]);
                 }
+            }
+            let plistRemoved = false;
+            for (const path of owned){
                 try {
-                    (0, node_fs__rspack_import_1.rmSync)(paths.plistPath, {
-                        force: true
-                    });
-                    plistRemoved = !fileExists(paths.plistPath);
+                    (0, node_fs__rspack_import_1.rmSync)(path);
+                    if (path === paths.plistPath) plistRemoved = true;
+                    else removed.push(path);
                 } catch (error) {
-                    warnings.push(`could not remove ${paths.plistPath} (${error instanceof Error ? error.message : String(error)})`);
+                    warnings.push(`could not remove ${path} (${error instanceof Error ? error.message : String(error)})`);
                 }
+            }
+            if (clearCli) {
                 runBestEffort(runner, warnings, "launchctl unsetenv CODEX_CLI_PATH", "launchctl", [
                     "unsetenv",
                     "CODEX_CLI_PATH"
                 ]);
-                runBestEffort(runner, warnings, "launchctl unsetenv CODEX_HOME", "launchctl", [
-                    "unsetenv",
-                    "CODEX_HOME"
-                ]);
-                runBestEffort(runner, warnings, "launchctl unsetenv CODEX_APP_SERVER_USE_LOCAL_DAEMON", "launchctl", [
+                if (clearDaemon) runBestEffort(runner, warnings, "launchctl unsetenv CODEX_APP_SERVER_USE_LOCAL_DAEMON", "launchctl", [
                     "unsetenv",
                     "CODEX_APP_SERVER_USE_LOCAL_DAEMON"
-                ]);
-                runBestEffort(runner, warnings, "launchctl unsetenv CODEX_APP_SERVER_WS_URL", "launchctl", [
-                    "unsetenv",
-                    "CODEX_APP_SERVER_WS_URL"
                 ]);
             }
             return {
@@ -29419,8 +29378,8 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
     },
     "./src/core/format.js" (__unused_rspack___webpack_module__, __webpack_exports__, __webpack_require__) {
         var _transcript_js__rspack_import_0 = __webpack_require__("./src/core/transcript.js");
-        function stripTerminalControls(text) {
-            return String(text).replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "").replace(/\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g, "").replace(/\u001b./g, "").replace(/[\u0000-\u001F\u007F-\u009F]/g, "");
+        function stripTerminalControls(text, keepNewlines = false) {
+            return String(text).replace(/\u001b\[[0-9;?]*[ -/]*[@-~]/g, "").replace(/\u001b\][^\u0007\u001b]*(?:\u0007|\u001b\\)/g, "").replace(/\u001b./g, "").replace(keepNewlines ? /[\u0000-\u0009\u000B-\u001F\u007F-\u009F]/g : /[\u0000-\u001F\u007F-\u009F]/g, "");
         }
         function summarize(rec) {
             return {
@@ -29457,13 +29416,13 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             if (rec.hiddenFromSidebar !== undefined) settings.push("hidden " + (rec.hiddenFromSidebar ? "on" : "off"));
             const settingsLine = settings.length ? "\n    " + settings.join(", ") : "";
             const extra = rec.isGroup ? "\n    members (" + rec.memberIds.length + "): " + (members || "(none)") : "";
-            return kind + "  " + rec.name + title + "\n    " + rec.id + desc + avatar + settingsLine + extra;
+            return stripTerminalControls(kind + "  " + rec.name + title + "\n    " + rec.id + desc + avatar + settingsLine + extra, true);
         }
         function formatTranscript(out, { full = false } = {}) {
             const rec = out.target;
             const payload = out.transcript || out.thread || {};
             const entries = (0, _transcript_js__rspack_import_0.xw)(payload);
-            const header = (rec.isGroup ? "group" : "bot") + "  " + rec.name + "\n    " + rec.id;
+            const header = stripTerminalControls((rec.isGroup ? "group" : "bot") + "  " + rec.name + "\n    " + rec.id, true);
             if (!Array.isArray(entries) || entries.length === 0) {
                 return header + "\n    (no messages)";
             }
@@ -29472,9 +29431,9 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                 ""
             ];
             for (const e of entries){
-                const role = e.role || e.kind || e.sender || e.type || "msg";
-                const text = (0, _transcript_js__rspack_import_0.u0)(e);
-                const id = e.id || "";
+                const role = stripTerminalControls(e.role || e.kind || e.sender || e.type || "msg");
+                const text = stripTerminalControls((0, _transcript_js__rspack_import_0.u0)(e), true);
+                const id = stripTerminalControls(e.id || "");
                 lines.push("[" + role + (id ? " " + id : "") + "] " + (full ? text : truncateCliText(text)));
             }
             return lines.join("\n");
@@ -29557,6 +29516,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
         __webpack_require__.d(__webpack_exports__, {
             Ks: ()=>describeDelivery,
             P2: ()=>formatCodexStatus,
+            ZB: ()=>stripTerminalControls,
             bM: ()=>formatRecord,
             e_: ()=>formatCodexQueue,
             eh: ()=>summarize,
@@ -29947,17 +29907,20 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             if (patch.name !== undefined && !String(patch.name).trim()) {
                 throw new GatewayError("Name cannot be blank.");
             }
-            const profile = {
-                name: patch.name !== undefined ? String(patch.name).trim() : rec.name,
-                description: patch.description !== undefined ? String(patch.description) : rec.description
-            };
-            if (patch.title !== undefined) profile.title = String(patch.title);
-            if (patch.avatarShape !== undefined) profile.avatarShape = assertAvatar("shape", patch.avatarShape, _store_js__rspack_import_3.Jb);
-            if (patch.avatarColor !== undefined) profile.avatarColor = assertAvatar("color", patch.avatarColor, _store_js__rspack_import_3.T7);
-            await gatewayCall(session, "updateAgent", {
-                id: rec.id,
-                profile
-            });
+            const hasProfile = patch.name !== undefined || patch.description !== undefined || patch.title !== undefined || patch.avatarShape !== undefined || patch.avatarColor !== undefined;
+            if (hasProfile) {
+                const profile = {
+                    name: patch.name !== undefined ? String(patch.name).trim() : rec.name,
+                    description: patch.description !== undefined ? String(patch.description) : rec.description
+                };
+                if (patch.title !== undefined) profile.title = String(patch.title);
+                if (patch.avatarShape !== undefined) profile.avatarShape = assertAvatar("shape", patch.avatarShape, _store_js__rspack_import_3.Jb);
+                if (patch.avatarColor !== undefined) profile.avatarColor = assertAvatar("color", patch.avatarColor, _store_js__rspack_import_3.T7);
+                await gatewayCall(session, "updateAgent", {
+                    id: rec.id,
+                    profile
+                });
+            }
             if (patch.notifyOnAgentUpdates !== undefined) {
                 await gatewayCall(session, "setAgentNotifyOnUpdates", {
                     id: rec.id,
@@ -30100,6 +30063,9 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             const group = resolveFromList(records, groupRef);
             if (!group.isGroup) throw new GatewayError(`"${group.name}" is a bot, not a group.`);
             const memberAgentIds = normalizeMemberIds(records, memberRefs);
+            return setMembers(session, group, memberAgentIds);
+        }
+        async function setMembers(session, group, memberAgentIds) {
             const data = await gatewayCall(session, "setGroupMembers", {
                 id: group.id,
                 memberAgentIds
@@ -30121,7 +30087,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                     member.id
                 ])
             ];
-            return setGroupMembers(session, group.id, next);
+            return setMembers(session, group, normalizeMemberIds(records, next));
         }
         async function removeGroupMember(session, groupRef, memberRef) {
             const records = await listAgents(session);
@@ -30129,7 +30095,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             if (!group.isGroup) throw new GatewayError(`"${group.name}" is a bot, not a group.`);
             const member = resolveFromList(records, memberRef);
             const next = group.memberIds.filter((id)=>id !== member.id);
-            return setGroupMembers(session, group.id, next);
+            return setMembers(session, group, normalizeMemberIds(records, next));
         }
         async function backendSendPrompt(state, body, signal) {
             const method = "SendGrokBotUserMessage";
@@ -30905,7 +30871,38 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             return JSON.parse((0, node_fs__rspack_import_1.readFileSync)(path, "utf8"));
         }
         function writeJson(path, value) {
-            (0, node_fs__rspack_import_1.writeFileSync)(path, `${JSON.stringify(value, null, 2)}\n`, "utf8");
+            const bytes = `${JSON.stringify(value, null, 2)}\n`;
+            let previous;
+            try {
+                previous = (0, node_fs__rspack_import_1.lstatSync)(path);
+            } catch (error) {
+                if (error.code !== "ENOENT") throw error;
+            }
+            if (previous) {
+                path = (0, node_fs__rspack_import_1.realpathSync)(path);
+                previous = (0, node_fs__rspack_import_1.statSync)(path);
+            }
+            const temporary = (0, node_path__rspack_import_3.join)((0, node_path__rspack_import_3.dirname)(path), `.${(0, node_path__rspack_import_3.basename)(path)}.${(0, node_crypto__rspack_import_0.randomUUID)()}.tmp`);
+            const fd = (0, node_fs__rspack_import_1.openSync)(temporary, "wx", previous ? 384 : 438);
+            try {
+                try {
+                    (0, node_fs__rspack_import_1.writeFileSync)(fd, bytes, "utf8");
+                    if (previous) {
+                        const created = (0, node_fs__rspack_import_1.statSync)(temporary);
+                        if (created.uid !== previous.uid || created.gid !== previous.gid) {
+                            (0, node_fs__rspack_import_1.fchownSync)(fd, previous.uid, previous.gid);
+                        }
+                        (0, node_fs__rspack_import_1.fchmodSync)(fd, previous.mode & 4095);
+                    }
+                } finally{
+                    (0, node_fs__rspack_import_1.closeSync)(fd);
+                }
+                (0, node_fs__rspack_import_1.renameSync)(temporary, path);
+            } finally{
+                (0, node_fs__rspack_import_1.rmSync)(temporary, {
+                    force: true
+                });
+            }
         }
         function isUuid(value) {
             return UUID_RE.test(value);
@@ -30946,7 +30943,6 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
         }
         function readProfile(dir) {
             const path = (0, node_path__rspack_import_3.join)(dir, PROFILE_FILE);
-            if (!(0, node_fs__rspack_import_1.existsSync)(path)) return null;
             const raw = readJson(path);
             return {
                 name: String(raw.name ?? ""),
@@ -30968,16 +30964,24 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
         }
         function readRawSettings(dir) {
             const path = (0, node_path__rspack_import_3.join)(dir, SETTINGS_FILE);
-            if (!(0, node_fs__rspack_import_1.existsSync)(path)) return {};
             try {
                 const raw = readJson(path);
-                return raw && typeof raw === "object" && !Array.isArray(raw) ? raw : {};
-            } catch  {
-                return {};
+                if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+                    throw new StoreError(`Settings must be a JSON object: ${path}`);
+                }
+                return raw;
+            } catch (error) {
+                if (error.code === "ENOENT") return {};
+                throw error;
             }
         }
         function readSettings(dir) {
-            const raw = readRawSettings(dir);
+            let raw;
+            try {
+                raw = readRawSettings(dir);
+            } catch  {
+                raw = {};
+            }
             return {
                 notifyOnAgentUpdates: typeof raw.notifyOnAgentUpdates === "boolean" ? raw.notifyOnAgentUpdates : true,
                 hiddenFromSidebar: typeof raw.hiddenFromSidebar === "boolean" ? raw.hiddenFromSidebar : false
@@ -30991,22 +30995,27 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             })){
                 if (!entry.isDirectory() || !isUuid(entry.name)) continue;
                 const dir = (0, node_path__rspack_import_3.join)(root, entry.name);
-                const profile = readProfile(dir);
-                if (!profile) continue;
-                const group = readGroup(dir);
-                out.push({
-                    id: entry.name,
-                    path: dir,
-                    ...profile,
-                    ...readSettings(dir),
-                    isGroup: group != null,
-                    memberIds: group?.memberIds ?? []
-                });
+                if (!(0, node_fs__rspack_import_1.existsSync)((0, node_path__rspack_import_3.join)(dir, PROFILE_FILE))) continue;
+                out.push(readRecord(dir, entry.name));
             }
             return out.sort((a, b)=>a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
         }
+        function readRecord(dir, id) {
+            const profile = readProfile(dir);
+            const group = readGroup(dir);
+            return {
+                id,
+                path: dir,
+                ...profile,
+                ...readSettings(dir),
+                isGroup: group != null,
+                memberIds: group?.memberIds ?? []
+            };
+        }
         function resolveRef(root, ref) {
-            const records = listRecords(root);
+            return resolveFromList(listRecords(root), ref);
+        }
+        function resolveFromList(records, ref) {
             if (isUuid(ref)) {
                 const exact = records.find((r)=>r.id.toLowerCase() === ref.toLowerCase());
                 if (!exact) throw new StoreError(`No bot or group with id ${ref}`);
@@ -31056,14 +31065,12 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                 memberIds
             });
         }
-        function normalizeMemberIds(root, memberRefs) {
-            const records = listRecords(root);
-            const groups = new Set(records.filter((r)=>r.isGroup).map((r)=>r.id));
+        function normalizeMemberIds(records, memberRefs) {
             const resolved = [];
             const seen = new Set();
             for (const ref of memberRefs){
-                const rec = resolveRef(root, ref);
-                if (groups.has(rec.id)) {
+                const rec = resolveFromList(records, ref);
+                if (rec.isGroup) {
                     throw new StoreError(`Cannot add group "${rec.name}" as a member. Nested groups are not allowed.`);
                 }
                 if (seen.has(rec.id)) continue;
@@ -31097,7 +31104,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                 avatarColor: input.avatarColor ?? ""
             });
             writeSettings(dir);
-            return resolveRef(root, id);
+            return readRecord(dir, id);
         }
         function updateAgent(root, ref, patch = {}) {
             const rec = resolveRef(root, ref);
@@ -31116,7 +31123,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                 });
             }
             mergeSettings(rec.path, patch);
-            return resolveRef(root, rec.id);
+            return readRecord(rec.path, rec.id);
         }
         function deleteAgent(root, ref) {
             const rec = resolveRef(root, ref);
@@ -31131,11 +31138,12 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             return rec;
         }
         function createGroup(root, input) {
-            const memberIds = normalizeMemberIds(root, input.memberIds ?? []);
+            const records = listRecords(root);
+            const memberIds = normalizeMemberIds(records, input.memberIds ?? []);
             if (memberIds.length === 0) {
                 throw new StoreError("A group needs at least one existing member agent.");
             }
-            const existing = listRecords(root).find((r)=>r.isGroup && r.memberIds.length === memberIds.length && r.memberIds.every((id)=>memberIds.includes(id)));
+            const existing = records.find((r)=>r.isGroup && r.memberIds.length === memberIds.length && r.memberIds.every((id)=>memberIds.includes(id)));
             if (existing) return existing;
             const group = createAgent(root, {
                 name: input.name,
@@ -31145,29 +31153,35 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                 avatarColor: input.avatarColor ?? ""
             });
             writeGroup((0, node_path__rspack_import_3.join)(root, group.id), memberIds);
-            return resolveRef(root, group.id);
+            return readRecord(group.path, group.id);
         }
         function setGroupMembers(root, groupRef, memberRefs) {
-            const group = resolveRef(root, groupRef);
+            const records = listRecords(root);
+            const group = resolveFromList(records, groupRef);
+            return setMembers(records, group, memberRefs);
+        }
+        function setMembers(records, group, memberRefs) {
             if (!group.isGroup) throw new StoreError(`"${group.name}" is a bot, not a group.`);
-            const memberIds = normalizeMemberIds(root, memberRefs);
+            const memberIds = normalizeMemberIds(records, memberRefs);
             if (memberIds.length === 0) {
                 throw new StoreError("A group needs at least one existing member agent.");
             }
             writeGroup(group.path, memberIds);
-            return resolveRef(root, group.id);
+            return readRecord(group.path, group.id);
         }
         function addGroupMember(root, groupRef, memberRef) {
-            const group = resolveRef(root, groupRef);
-            return setGroupMembers(root, group.id, [
+            const records = listRecords(root);
+            const group = resolveFromList(records, groupRef);
+            return setMembers(records, group, [
                 ...group.memberIds,
                 memberRef
             ]);
         }
         function removeGroupMember(root, groupRef, memberRef) {
-            const group = resolveRef(root, groupRef);
-            const member = resolveRef(root, memberRef);
-            return setGroupMembers(root, group.id, group.memberIds.filter((id)=>id !== member.id));
+            const records = listRecords(root);
+            const group = resolveFromList(records, groupRef);
+            const member = resolveFromList(records, memberRef);
+            return setMembers(records, group, group.memberIds.filter((id)=>id !== member.id));
         }
         __webpack_require__.d(__webpack_exports__, {
             A0: ()=>removeGroupMember,
@@ -31215,7 +31229,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             if (Array.isArray(content)) {
                 return content.map((part)=>{
                     if (typeof part === "string") return part;
-                    if (part && typeof part === "object") return part.text || part.content || "";
+                    if (part && typeof part === "object") return toSafeText(part.text || part.content || "");
                     return "";
                 }).filter(Boolean).join("\n");
             }
@@ -31367,8 +31381,19 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
         }
         function redactSecrets(text) {
             let s = String(text);
-            s = s.replace(/(^|[\s,{;])((?:set-cookie|cookie)\s*[:=]\s*)([^\n;]+?)(?=\s+(?:set-cookie|cookie|authorization|proxy-authorization)\b|\s*$)/gi, "$1$2<redacted>");
-            s = s.replace(/(^|[\s,{;])((?:authorization|proxy-authorization)\s*[:=]\s*)(\S+(?:\s+\S+)?)/gi, "$1$2<redacted>");
+            s = s.replace(/((?:"(?:set-cookie|cookie)"|'(?:set-cookie|cookie)')\s*[:=]\s*)(["'])(?:\\.|(?!\2)[^\\\r\n])*\2/gi, "$1$2<redacted>$2");
+            const cookieHeaders = new RegExp([
+                String.raw`(?<jsonPrefix>[:\[,]\s*)(?<jsonValue>"(?:\\(?:["\\/bfnrt]|u[0-9a-f]{4})|[^"\\\u0000-\u001f])*")`,
+                String.raw`(?<shellPrefix>(?:^|[^\s:\[,])[ \t]*)(?:'(?<single>(?:set-cookie|cookie)\s*[:=])[^'\r\n]*(?:'|(?=\r?$))|"(?<double>(?:set-cookie|cookie)\s*[:=])(?:\\.|[^"\\\r\n])*(?:"|(?=\r?$)))(?:'[^'\r\n]*'|"(?:\\.|[^"\\\r\n])*"|\\[^\r\n]|[^\s'"\\;&|<>()])*`,
+                String.raw`(?<headerPrefix>^|[\s,{;])(?<header>(?:set-cookie|cookie)\s*[:=])[^\r\n]*?(?=\s+(?:set-cookie|cookie|authorization|proxy-authorization)\s*:|\r?$)`
+            ].join("|"), "gmi");
+            s = s.replace(cookieHeaders, (...args)=>{
+                const { jsonPrefix, jsonValue, shellPrefix, single, double, headerPrefix, header } = args.at(-1);
+                if (jsonValue !== undefined) return jsonPrefix + JSON.stringify(redactSecrets(JSON.parse(jsonValue)));
+                if (shellPrefix !== undefined) return shellPrefix + (single ? `'${single} <redacted>'` : `"${double} <redacted>"`);
+                return headerPrefix + header + " <redacted>";
+            });
+            s = s.replace(/(^|[\s,{;])((?:authorization|proxy-authorization)\s*[:=]\s*)(<redacted>|\S+(?:\s+\S+)?)/gi, "$1$2<redacted>");
             s = s.replace(/Bearer\s+[A-Za-z0-9._+\/=-]+/gi, "Bearer <redacted>");
             s = s.replace(/(["']?(?:authorization|gatewayToken|gateway_token|access_token|accessToken|refresh_token|refreshToken|token|x-anyrun-network-token|cookie|set-cookie)["']?\s*[:=]\s*["']?)([^"',\s}]+)/gi, "$1<redacted>");
             s = s.replace(/(x-anyrun-network-token\s*[=:]\s*)(\S+)/gi, "$1<redacted>");
