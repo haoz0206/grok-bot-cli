@@ -12,7 +12,7 @@
 | `git commit` | 把选中的修改保存为本地 Git 提交 | 不能 |
 | `git push` | 把本地提交上传到 GitHub 对应分支 | 不能，仅上传代码不代表 npm 已更新 |
 | 功能 PR 合并到 `main` | Release 工作流处理待发布的 Changeset | 通常先生成发版 PR |
-| 合并 `Release packages` PR | 更新后的版本进入 `main`，工作流构建并发布 | npm 确认新版本可用后可以安装 |
+| 合并 `Release packages` PR | 版本进入 `main`，`publish` 等待 Environment `npm-publish` 批准 | 批准且 npm 确认新版本后可以安装 |
 
 可以积累多次 commit 和 push，再发布一个 npm 版本。已安装的用户不会自动升级。
 
@@ -49,13 +49,24 @@ Fix delivery receipts for server-hosted bots.
 ## 判断 Release 工作流会做什么
 
 [release.yml](../.github/workflows/release.yml) 在 `main` 收到 push 时自动运行，也支持手动触发。
-手动运行时只选择 `main`。工作流读取 GitHub 上的代码，不包含本机未提交或未推送的修改。
+手动触发只在 `refs/heads/main` 上继续；其他 ref 会使 `main-only` 失败，并且不会进入发布 job。
+工作流读取 GitHub 上的代码，不包含本机未提交或未推送的修改。
 
-| GitHub `main` 的状态 | 运行 Release 的结果 | 接下来做什么 |
-| --- | --- | --- |
-| 还有待发布的 Changeset | 创建或更新 `Release packages` PR | 检查并合并发版 PR |
-| Changeset 已由发版 PR 消费，当前版本尚未发布 | 尝试发布 `package.json` 中的版本 | 等待工作流和 npm 验证 |
-| 没有待发布 Changeset，当前版本已在 npm | 不产生新版本，验证现有版本 | 如果没有新修改，本次工作已完成 |
+版本 PR 和 npm 发布是两个 job：
+
+| Job | 何时运行 | 是否等待批准 | 结果 |
+| --- | --- | --- | --- |
+| `version` | `main` 上还有待发布 Changeset | 否 | 创建或更新 `Release packages` PR。没有 `id-token`，也没有 `publish-script` |
+| `publish` | `main` 上没有待发布 Changeset | 是，GitHub Environment `npm-publish` | 批准后才执行 `npm run release`，并创建 GitHub Release |
+| 两者之外 | 手动触发的 ref 不是 `main` | 否 | 工作流失败，不发布 |
+
+`publish` 在步骤开始前等待 Environment 批准。生成版本 PR 的 job 不使用该 Environment。
+发布命令之前还有一道只读校验：`npm-publish` 必须有 required reviewer `haoz0206`（id `236642726`），`prevent_self_review` 为 false，并且部署分支恰好是 `main`。校验失败就不执行 `npm run release`。
+zstack 对发版 PR 的审查是仓库外的审核，不是 GitHub required reviewer。
+Environment 的 required reviewer 是 GitHub 用户 `haoz0206`。`prevent_self_review` 必须保持关闭，否则唯一批准人无法批准自己触发的部署。
+
+当前 `main` 若没有待发布 Changeset，合并只改 workflow 的 PR 也会排队 `publish`。
+在批准部署之前不会执行 `npm publish`。不打算重跑已发布版本时，拒绝该部署。
 
 所以，点击 **Run workflow** 不一定立刻发布 npm。准备发版 PR 的运行可以成功，
 但那次运行不证明 npm 已有新版本。不要靠反复运行工作流来增加版本号。
@@ -93,7 +104,8 @@ Fix delivery receipts for server-hosted bots.
 
    如果 head 改变，重新审核。不要用 `--admin` 绕过检查或分支保护。
 6. 记录实际合并到 `main` 的提交 SHA 和目标版本，跟踪该提交的 Release 运行。
-   不要把较早的“创建发版 PR”运行当作发布成功。完成下面的发布验证。
+   不要把较早的“创建发版 PR”运行当作发布成功。`publish` 被批准并完成前都不是发布成功。
+   完成下面的发布验证。
 7. 报告版本、发布提交、PR 链接、Release 运行链接、npm 验证结果和未完成事项。
    只有用户还要求更新本机安装时，才执行全局升级。
 
@@ -107,11 +119,12 @@ Fix delivery receipts for server-hosted bots.
 2. 打开 [Actions → Release](https://github.com/haoz0206/grok-bot-cli/actions/workflows/release.yml)。
    如果已有该提交的运行，等待它完成。否则点击 **Run workflow**，选择 `main` 并运行。
 3. 如果出现 [Release packages PR](https://github.com/haoz0206/grok-bot-cli/pulls)，
-   检查版本、发布内容和 CI，然后合并。此操作会自动触发真正的发布运行。
-4. 回到 Actions，打开对应合并提交的 Release。等它完成，并确认
+   检查版本、发布内容和 CI，然后合并。合并会再触发 Release。此时 `publish` 等待
+   Environment `npm-publish` 的批准，批准前不会发布。
+4. 在该次运行的 `publish` job 上批准部署。等它完成，并确认
    **Verify package.json version resolves on npm** 为成功，而不是跳过。
 5. 按下一节检查 npm 上的目标版本。若合并后没有自动运行，确认该提交已在 `main`，
-   再在 `main` 手动运行 Release。
+   再在 `main` 手动运行 Release，并同样批准 `npm-publish`。
 
 ## 验证发布成功
 
@@ -160,8 +173,12 @@ npm install --global "@haoz0206/grok-bot-cli@$release_version" --registry=https:
 - **已有 Release 正在运行。** 跟踪原运行。相同分支的新运行会取消旧运行，避免重复点击。
 - **工作流失败。** 查看对应运行的失败步骤和日志，区分构建、权限、发布和 registry 验证失败。
   修复实际问题后，在 `main` 重试；不要重跑旧提交来代替验证已经改变的代码。
-- **PR 检查没有运行。** 检查 GitHub 的 Actions 权限、工作流审批和 PR 运行记录。
-  没有 job 或被跳过的检查不是测试通过。不要通过跳过检查来推进发布。
+- **PR 检查没有运行。** 2026-11-15 的 [Package CI run 43738853007](https://github.com/haoz0206/grok-bot-cli/actions/runs/43738853007)
+  和 2026-11-16 的 [Package CI run 43853306634](https://github.com/haoz0206/grok-bot-cli/actions/runs/43853306634)
+  都是 0 个 job。运行页面原文是 “This workflow run required approval but was not approved before it expired.”
+  这两次 PR 的 head 仓库都是本仓库，actor 是 `github-actions[bot]`。运行的 `updated_at` 与 PR 合并时间相同。
+  没有 job 或被跳过的检查不是测试通过。需要看到真实 job 成功后，才能把检查设为 required。
+  Actions 权限接口本次返回 403，所以没有改 “Approve and run workflows” 设置。
 - **无法创建发版 PR。** 检查仓库 Actions 设置中的
   **Allow GitHub Actions to create and approve pull requests**。
 - **OIDC 发布失败。** 检查下面的 Trusted Publisher 配置、工作流的 `id-token: write` 和
@@ -176,16 +193,39 @@ GitHub Release 页面、发布步骤显示成功或单独存在 provenance 信�
 [Changesets 配置](../.changeset/config.json)，发布入口在 [package.json](../package.json)。
 修改这些文件后，同时更新本指南。
 
-| npm Trusted Publisher 字段 | 值 |
-| --- | --- |
-| Provider | GitHub Actions |
-| Organization or user | `haoz0206` |
-| Repository | `grok-bot-cli` |
-| Workflow filename | `release.yml` |
-| Environment name | 留空 |
-| Allowed actions | 允许 `npm publish` |
+| npm Trusted Publisher 字段 | 仓库侧现状 | 仍需在 npm 完成 |
+| --- | --- | --- |
+| Provider | GitHub Actions | 保持 |
+| Organization or user | `haoz0206` | 保持 |
+| Repository | `grok-bot-cli` | 保持 |
+| Workflow filename | `release.yml` | 保持 |
+| Environment name | workflow 使用 `npm-publish` | 把 Trusted Publisher 的 Environment name 改成 `npm-publish` |
+| Allowed actions | 发布 job 只在批准后请求 OIDC | 保持允许 `npm publish` |
+
+本次没有创建出 `npm-publish`。`PUT /repos/haoz0206/grok-bot-cli/environments/npm-publish` 返回 403 `Resource not accessible by integration`，随后 GET 为 404。在合并含有 `environment: npm-publish` 的 workflow 之前，用有管理员权限的账号在仓库 Settings → Environments 创建它，否则第一次 `publish` 可能先生成一个没有 reviewer 的同名 Environment。创建时使用这些值：
+
+- Name: `npm-publish`
+- Required reviewers: `haoz0206`（用户 id `236642726`）
+- Prevent self-review: 关闭
+- Deployment branches: Selected branches，只添加 `main`。不要选 Protected branches，因为 `main` 目前没有分支保护，那样会没有任何分支可以部署
+
+创建后读回：
+
+```sh
+gh api repos/haoz0206/grok-bot-cli/environments/npm-publish
+gh api repos/haoz0206/grok-bot-cli/environments/npm-publish/deployment-branch-policies
+```
+
+确认 reviewer 是 `haoz0206`，`prevent_self_review` 为 false，分支策略只有 `main`。读回不符合时不要合并。
+
+GitHub Environment 只决定本仓库的 `publish` job 能否开始。它不会改 npm 上的 Trusted Publisher。
+在 npm 仍把 Environment name 留空时，一旦有人改掉 workflow 并不再进入 `npm-publish`，npm 仍可能接受该 workflow 的 OIDC。
+把 npm 的 Environment name 设为 `npm-publish` 之后，没有这个 Environment 的运行不能通过 npm 的发布方检查。
+仓库文件不能代替这一步。改 npm 时打开包 `@haoz0206/grok-bot-cli` 的 Trusted Publisher，Environment name 填 `npm-publish`，不要填别的名字。
 
 `package.json` 的 `publishConfig` 保持公共 registry 和 public access。
 `npm run release` 和 `npm run release:version` 是工作流入口，不是本地日常操作。
 不要执行本地 `npm publish`、重新做首次初始化，或配置长期 npm 发布 token。
 需要调整 npm 设置时，参考 [npm Trusted Publisher 文档](https://docs.npmjs.com/trusted-publishers/)。
+
+`main` 推送还会触发独立的 [zstack 唤醒](../.github/zstack/README.md)。它只发送仓库、ref 和 SHA，不参与版本或发布。

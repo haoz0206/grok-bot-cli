@@ -29,7 +29,9 @@ jobs:
       - name: Validate committed distribution
         run: |
           npm run validate:artifact
-          node --test test/release-config.test.js
+          node --test test/release-config.test.js test/release-workflow.test.js
+          python3 .github/zstack/test_notify_zstack.py
+          python3 .github/release/test_npm_publish_environment.py
 
       - name: Validate, build, typecheck, and test
         run: npm run check
@@ -60,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-26.04, macos-14, windows-2025]
+        os: [ubuntu-26.04, macos-15-intel, windows-2025]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
