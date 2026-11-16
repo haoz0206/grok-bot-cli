@@ -29,7 +29,9 @@ jobs:
       - name: Validate committed distribution
         run: |
           npm run validate:artifact
-          node --test test/release-config.test.js
+          node --test test/release-config.test.js test/release-workflow.test.js
+          python3 .github/zstack/test_notify_zstack.py
+          python3 .github/release/test_npm_publish_environment.py
 
       - name: Validate, build, typecheck, and test
         run: npm run check

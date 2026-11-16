@@ -9,6 +9,8 @@ tmp-agents/
 *.log
 .DS_Store
 *.tsbuildinfo
+__pycache__/
+*.pyc
 
 # Local plugin checkout is not part of the shipped source snapshot.
 /plugin/

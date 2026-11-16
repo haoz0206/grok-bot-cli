@@ -6,17 +6,25 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
-  id-token: write
-  pull-requests: write
+  contents: read
 
 concurrency:
   group: changesets-release-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  main-only:
+    if: github.repository == 'haoz0206/grok-bot-cli' && github.ref != 'refs/heads/main'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    steps:
+      - name: Reject a manual run that is not main
+        run: |
+          echo "::error::Release workflow_dispatch is limited to refs/heads/main."
+          exit 1
+
   platform:
-    if: github.repository == 'haoz0206/grok-bot-cli'
+    if: github.repository == 'haoz0206/grok-bot-cli' && github.ref == 'refs/heads/main'
     strategy:
       fail-fast: false
       matrix:
@@ -62,17 +70,67 @@ jobs:
           npm exec --prefix "$install_root" --no -- grok-bot --help
           npm exec --prefix "$install_root" --no -- gbot-install --help
 
-  release:
-    if: github.repository == 'haoz0206/grok-bot-cli'
+  version:
+    if: github.repository == 'haoz0206/grok-bot-cli' && github.ref == 'refs/heads/main'
     needs: platform
     runs-on: ubuntu-26.04
-    # Allow ~20 minutes of npm registry propagation retries after publish.
-    timeout-minutes: 35
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+      id-token: none
+    outputs:
+      has-changesets: ${{ steps.changesets.outputs.has-changesets }}
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "26"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Validate, build, typecheck, and test
+        run: npm run check
+
+      - name: Open or update the release pull request
+        id: changesets
+        uses: changesets/action@ae32849d5ba541f9ae29e40e22a623bc13562f51 # v2.1.2
+        with:
+          pr-base-branch: main
+          commit-message: Release packages
+          create-github-releases: false
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          pr-title: Release packages
+          push-git-tags: false
+          push-with-git-cli: true
+          version-script: npm run release:version
+
+  publish:
+    if: github.repository == 'haoz0206/grok-bot-cli' && github.ref == 'refs/heads/main' && needs.version.outputs.has-changesets == 'false'
+    needs: [platform, version]
+    runs-on: ubuntu-26.04
+    environment: npm-publish
+    timeout-minutes: 35
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+
+      - name: Require protected npm-publish environment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NPM_PUBLISH_REPOSITORY: ${{ github.repository }}
+        run: python3 .github/release/check_npm_publish_environment.py
 
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
@@ -107,7 +165,7 @@ jobs:
           npm exec --prefix "$install_root" --no -- grok-bot --help
           npm exec --prefix "$install_root" --no -- gbot-install --help
 
-      - name: Create release pull request or publish
+      - name: Publish released packages
         id: changesets
         env:
           NPM_CONFIG_LOGS_DIR: ${{ runner.temp }}/gbot-publish-logs
@@ -120,11 +178,14 @@ jobs:
           publish-script: npm run release
           pr-title: Release packages
           push-with-git-cli: true
-          version-script: npm run release:version
+          version-script: node -e "console.error('publish job refuses to version while changesets remain'); process.exit(1)"
 
-      # Green must mean published. Once no changesets are pending, the version
-      # in package.json is the one that should be on npm, whether this run
-      # published it or an earlier one did; a silent publish failure is red.
+      - name: Stop when changesets are still present
+        if: steps.changesets.outputs.has-changesets != 'false'
+        run: |
+          echo "::error::The publish job saw pending changesets and did not publish."
+          exit 1
+
       - name: Verify package.json version resolves on npm
         if: steps.changesets.outputs.has-changesets == 'false'
         shell: bash

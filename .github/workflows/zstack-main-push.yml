@@ -1,0 +1,324 @@
+name: zstack main push wake
+
+# Wake zstack when refs/heads/main moves. Sender source and offline tests:
+# .github/zstack/
+# Inlined so this job does not check out the repository.
+# This workflow does not version or publish packages.
+
+on:
+  push:
+    branches:
+      - main
+
+permissions: {}
+
+jobs:
+  notify:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Post repository ref and sha to zstack
+        env:
+          ZSTACK_WEBHOOK_URL: ${{ secrets.ZSTACK_WEBHOOK_URL }}
+          ZSTACK_WEBHOOK_KEY: ${{ secrets.ZSTACK_WEBHOOK_KEY }}
+          ZSTACK_REPOSITORY: ${{ github.repository }}
+          ZSTACK_REF: ${{ github.ref }}
+          ZSTACK_SHA: ${{ github.sha }}
+        run: |
+          set +x
+          set -euo pipefail
+          unset GITHUB_TOKEN GH_TOKEN || true
+          unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy no_proxy NO_PROXY || true
+          python3 -I - <<'PY'
+          """POST a main-branch wake to the zstack Grok Bot webhook.
+
+          Reads ZSTACK_WEBHOOK_URL, ZSTACK_WEBHOOK_KEY, ZSTACK_REPOSITORY, ZSTACK_REF,
+          and ZSTACK_SHA from the environment. Prints neither the URL nor the sender key,
+          and does not print response bodies or headers.
+
+          HTTP 200 means the wake was accepted. It does not mean the recipient finished
+          synchronizing. The request is attempted once and redirects are refused.
+          """
+
+          from __future__ import annotations
+
+          import json
+          import os
+          import re
+          import socket
+          import sys
+          import urllib.error
+          import urllib.parse
+          import urllib.request
+
+          HOST = "api2.cursor.sh"
+          TIMEOUT_SECONDS = 8
+          REF = "refs/heads/main"
+
+          _URL_RE = re.compile(
+              r"https://api2\.cursor\.sh/automations/webhook/[A-Za-z0-9_-]{1,200}\Z"
+          )
+          _REPO_RE = re.compile(r"[A-Za-z0-9_.-]{1,100}/[A-Za-z0-9_.-]{1,100}\Z")
+          _SHA_RE = re.compile(r"[0-9a-f]{40}\Z")
+
+          _GUIDANCE = (
+              "Copy the webhook URL and sender key from the grok-bot-cli-main-sync "
+              "routine panel. Store the URL as ZSTACK_WEBHOOK_URL and the sender key as "
+              "ZSTACK_WEBHOOK_KEY under this repository's Settings → Secrets and variables "
+              "→ Actions (repository secrets). The URL may be copied in chat. Do not paste "
+              "the sender key into chat, logs, or the repository."
+          )
+
+
+          class NotifyError(Exception):
+              """Failure whose message is safe to print."""
+
+
+          def validate_webhook_url(url: str) -> str:
+              if not isinstance(url, str) or url.strip() == "":
+                  raise NotifyError("ZSTACK_WEBHOOK_URL is missing. " + _GUIDANCE)
+              if url != url.strip() or _URL_RE.fullmatch(url) is None:
+                  raise NotifyError(
+                      "ZSTACK_WEBHOOK_URL is not an allowed webhook URL. "
+                      "Use https://api2.cursor.sh/automations/webhook/<id> with no "
+                      "userinfo, port, query, or fragment."
+                  )
+              parts = urllib.parse.urlsplit(url)
+              path = url[len("https://" + HOST) :]
+              if (
+                  parts.scheme != "https"
+                  or parts.username is not None
+                  or parts.password is not None
+                  or parts.hostname != HOST
+                  or parts.port is not None
+                  or parts.query
+                  or parts.fragment
+                  or parts.netloc != HOST
+                  or parts.path != path
+              ):
+                  raise NotifyError(
+                      "ZSTACK_WEBHOOK_URL failed the host and path check. "
+                      "Use the URL from the zstack routine panel, with no query string."
+                  )
+              return url
+
+
+          def validate_key(key: str) -> str:
+              if not isinstance(key, str) or key.strip() == "":
+                  raise NotifyError("ZSTACK_WEBHOOK_KEY is missing. " + _GUIDANCE)
+              if (
+                  key != key.strip()
+                  or len(key) > 2048
+                  or any(ord(ch) < 33 or ord(ch) == 127 for ch in key)
+              ):
+                  raise NotifyError(
+                      "ZSTACK_WEBHOOK_KEY is empty or contains whitespace or control "
+                      "characters, so it was not sent. Store the sender key unchanged "
+                      "as the GitHub Actions secret ZSTACK_WEBHOOK_KEY."
+                  )
+              try:
+                  key.encode("latin-1")
+              except UnicodeEncodeError:
+                  raise NotifyError(
+                      "ZSTACK_WEBHOOK_KEY cannot be sent as an HTTP header value. "
+                      "Store the sender key unchanged as ZSTACK_WEBHOOK_KEY."
+                  ) from None
+              return key
+
+
+          def validate_event(repository: str, ref: str, sha: str) -> None:
+              if not isinstance(repository, str) or _REPO_RE.fullmatch(repository) is None:
+                  raise NotifyError(
+                      "ZSTACK_REPOSITORY must be the trusted github.repository value (owner/name)."
+                  )
+              if ref != REF:
+                  raise NotifyError("ZSTACK_REF must be refs/heads/main from github.ref.")
+              if not isinstance(sha, str) or _SHA_RE.fullmatch(sha) is None:
+                  raise NotifyError("ZSTACK_SHA must be the 40-character github.sha.")
+              if sha == "0" * 40:
+                  raise NotifyError("ZSTACK_SHA must not be 40 zeros.")
+
+
+          def build_body(repository: str, ref: str, sha: str) -> bytes:
+              validate_event(repository, ref, sha)
+              payload = {"repository": repository, "ref": ref, "sha": sha}
+              encoded = json.dumps(
+                  payload, ensure_ascii=True, separators=(",", ":")
+              ).encode("ascii")
+              parsed = json.loads(encoded.decode("ascii"))
+              if list(parsed) != ["repository", "ref", "sha"]:
+                  raise NotifyError("payload must contain exactly repository, ref, and sha.")
+              return encoded
+
+
+          class _RejectNon200(urllib.request.HTTPErrorProcessor):
+              """Accept only HTTP 200. Do not read the body or follow a redirect."""
+
+              def http_response(self, request, response):
+                  code = getattr(response, "code", None)
+                  if code != 200:
+                      try:
+                          response.close()
+                      except Exception:
+                          pass
+                      shown = code if isinstance(code, int) else "unknown"
+                      raise NotifyError(
+                          f"webhook wake was not accepted (HTTP {shown}); not retried"
+                      )
+                  return response
+
+              https_response = http_response
+
+
+          class _NoRedirect(urllib.request.HTTPRedirectHandler):
+              """Refuse redirects so the sender key cannot be forwarded."""
+
+              max_redirections = 0
+              max_repeats = 0
+
+              def redirect_request(self, req, fp, code, msg, headers, newurl):
+                  raise NotifyError(f"webhook redirect refused (HTTP {code}); not retried")
+
+              def http_error_302(self, req, fp, code, msg, headers):
+                  raise NotifyError(f"webhook redirect refused (HTTP {code}); not retried")
+
+              http_error_301 = http_error_302
+              http_error_303 = http_error_302
+              http_error_307 = http_error_302
+              http_error_308 = http_error_302
+
+
+          class _NoFile(urllib.request.FileHandler):
+              def file_open(self, req):
+                  raise NotifyError("file URLs are not allowed; not retried")
+
+
+          class _NoFTP(urllib.request.FTPHandler):
+              def ftp_open(self, req):
+                  raise NotifyError("ftp URLs are not allowed; not retried")
+
+
+          class _NoData(urllib.request.DataHandler):
+              def data_open(self, req):
+                  raise NotifyError("data URLs are not allowed; not retried")
+
+
+          def build_opener() -> urllib.request.OpenerDirector:
+              # An empty ProxyHandler skips the default handler, which would read
+              # HTTP(S)_PROXY. The empty handler has no per-scheme opener, so no
+              # proxy is installed and the environment cannot retarget the POST.
+              return urllib.request.build_opener(
+                  urllib.request.ProxyHandler({}),
+                  _RejectNon200,
+                  _NoRedirect,
+                  _NoFile,
+                  _NoFTP,
+                  _NoData,
+              )
+
+
+          def _failure_from_url_error(exc: urllib.error.URLError) -> NotifyError:
+              reason = getattr(exc, "reason", None)
+              if isinstance(reason, (TimeoutError, socket.timeout)):
+                  return NotifyError("webhook request timed out after 8 seconds; not retried")
+              return NotifyError("webhook request failed before a response; not retried")
+
+
+          def _deliver(url: str, key: str, body: bytes, opener) -> None:
+              request = urllib.request.Request(
+                  url,
+                  data=body,
+                  method="POST",
+                  headers={
+                      "Content-Type": "application/json",
+                      "Authorization": "Bearer " + key,
+                      "X-Automation-Key": key,
+                      "User-Agent": "zstack-main-push",
+                  },
+              )
+              try:
+                  with opener.open(request, timeout=TIMEOUT_SECONDS) as response:
+                      status = getattr(response, "status", None)
+                      if status is None:
+                          status = response.getcode()
+              except NotifyError:
+                  raise
+              except urllib.error.HTTPError as exc:
+                  raise NotifyError(
+                      f"webhook wake was not accepted (HTTP {exc.code}); not retried"
+                  ) from None
+              except urllib.error.URLError as exc:
+                  raise _failure_from_url_error(exc) from None
+              except (TimeoutError, socket.timeout):
+                  raise NotifyError(
+                      "webhook request timed out after 8 seconds; not retried"
+                  ) from None
+              except OSError:
+                  raise NotifyError(
+                      "webhook request failed before a response; not retried"
+                  ) from None
+              except Exception:
+                  raise NotifyError("webhook request failed; not retried") from None
+              if status != 200:
+                  raise NotifyError(
+                      f"webhook wake was not accepted (HTTP {status}); not retried"
+                  )
+
+
+          def send(
+              repository: str,
+              ref: str,
+              sha: str,
+              url: str,
+              key: str,
+              opener=None,
+          ) -> None:
+              checked_url = validate_webhook_url(url)
+              checked_key = validate_key(key)
+              body = build_body(repository, ref, sha)
+              _deliver(checked_url, checked_key, body, opener or build_opener())
+
+
+          def main(environ=None, opener=None) -> str:
+              env = os.environ if environ is None else environ
+              missing = []
+              for name in (
+                  "ZSTACK_WEBHOOK_URL",
+                  "ZSTACK_WEBHOOK_KEY",
+                  "ZSTACK_REPOSITORY",
+                  "ZSTACK_REF",
+                  "ZSTACK_SHA",
+              ):
+                  value = env.get(name)
+                  if not isinstance(value, str) or value.strip() == "":
+                      missing.append(name)
+              if missing:
+                  raise NotifyError(
+                      "Missing required environment value(s): "
+                      + ", ".join(missing)
+                      + ". "
+                      + _GUIDANCE
+                  )
+              send(
+                  env["ZSTACK_REPOSITORY"],
+                  env["ZSTACK_REF"],
+                  env["ZSTACK_SHA"],
+                  env["ZSTACK_WEBHOOK_URL"],
+                  env["ZSTACK_WEBHOOK_KEY"],
+                  opener=opener,
+              )
+              return (
+                  "zstack wake accepted (HTTP 200) for sha "
+                  + env["ZSTACK_SHA"]
+                  + ". Acceptance is not completed synchronization."
+              )
+
+
+          if __name__ == "__main__":
+              try:
+                  print(main(), flush=True)
+              except NotifyError as exc:
+                  print("zstack notify: " + str(exc), file=sys.stderr)
+                  raise SystemExit(1)
+          PY
