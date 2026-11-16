@@ -1,6 +1,6 @@
 {
   "name": "@haoz0206/grok-bot-cli",
-  "version": "0.12.7",
+  "version": "0.12.8",
   "description": "Hao's fork of grok-bot-cli: CLI and Agent Bundle plugin for Grok Bot agents, groups, and messaging",
   "type": "module",
   "bin": {
