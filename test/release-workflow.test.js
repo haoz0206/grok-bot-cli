@@ -35,6 +35,8 @@ test("release publish is the only npm publish entry and waits on npm-publish", (
   assert.match(version, /id-token: none/);
   assert.match(version, /create-github-releases: false/);
   assert.match(version, /push-git-tags: false/);
+  assert.match(publish, /actions: read\n/);
+  assert.doesNotMatch(publish, /administration/);
   assert.match(publish, /id-token: write/);
   assert.match(publish, /check_npm_publish_environment\.py/);
   const guardAt = publish.indexOf("check_npm_publish_environment.py");

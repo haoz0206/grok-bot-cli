@@ -17,6 +17,9 @@ ENVIRONMENT = "npm-publish"
 REVIEWER_LOGIN = "haoz0206"
 REVIEWER_ID = 236642726
 BRANCH = "main"
+# Deployment branch policies include `type` in this REST version.
+# https://docs.github.com/en/rest/deployments/branch-policies#list-deployment-branch-policies
+API_VERSION = "2022-11-28"
 
 
 class EnvironmentCheckError(Exception):
@@ -86,12 +89,16 @@ def evaluate(environment: dict, policies: dict) -> None:
         raise EnvironmentCheckError(
             f"{ENVIRONMENT} deployment branch policies were not readable."
         )
-    names = [
-        item.get("name")
+    if any(
+        not isinstance(item, dict) or item.get("type") not in {"branch", "tag"}
         for item in entries
-        if isinstance(item, dict) and item.get("type") == "branch"
-    ]
-    if names != [BRANCH]:
+    ):
+        raise EnvironmentCheckError(
+            f"{ENVIRONMENT} branch policy response has no documented type. "
+            f"The check sends X-GitHub-Api-Version: {API_VERSION}."
+        )
+    names = [item.get("name") for item in entries if item.get("type") == "branch"]
+    if any(item.get("type") == "tag" for item in entries) or names != [BRANCH]:
         raise EnvironmentCheckError(
             f"{ENVIRONMENT} deployment branches must be exactly [{BRANCH}]."
         )
@@ -101,9 +108,10 @@ def _get_json(url: str, token: str, opener) -> dict:
     request = urllib.request.Request(
         url,
         headers={
-            "Accept": "application/json",
+            "Accept": "application/vnd.github+json",
             "Authorization": "Bearer " + token,
             "User-Agent": "grok-bot-cli-release-check",
+            "X-GitHub-Api-Version": API_VERSION,
         },
     )
     try:

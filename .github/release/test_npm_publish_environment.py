@@ -145,6 +145,18 @@ class EnvironmentGateTests(unittest.TestCase):
         self.assertTrue(opener.urls[1].endswith("/deployment-branch-policies"))
         for headers in opener.headers:
             self.assertEqual(headers.get("Authorization"), "Bearer " + token)
+            self.assertEqual(headers.get("X-github-api-version"), "2022-11-28")
+            self.assertEqual(
+                headers.get("Accept"), "application/vnd.github+json"
+            )
+
+    def test_missing_policy_type_fails_closed(self):
+        with self.assertRaises(gate.EnvironmentCheckError) as caught:
+            gate.evaluate(
+                environment(),
+                {"branch_policies": [{"name": "main"}]},
+            )
+        self.assertIn("2022-11-28", str(caught.exception))
 
     def test_missing_token_does_not_open(self):
         opener = FakeOpener([])
