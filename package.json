@@ -24,6 +24,7 @@
     "release": "changeset publish",
     "release:version": "changeset version && npm run build && npm run validate:artifact",
     "test": "npm run test:unit && npm run test:routes",
+    "test:platform": "node --test test/app-session.test.js test/connect-gateway.test.js test/doctor.test.js",
     "test:routes": "rstest --config rstest.route-unit.config.ts",
     "test:unit": "node scripts/run-unit-tests.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",

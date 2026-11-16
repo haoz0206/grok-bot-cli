@@ -55,3 +55,53 @@ jobs:
           "$bin_dir/gbot" --help
           "$bin_dir/grok-bot" --help
           "$bin_dir/gbot-install" --help
+
+  platform:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-26.04, macos-14, windows-2025]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version: "26"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build current sources
+        run: npm run build
+
+      - name: Exercise credential boundaries and doctor
+        run: npm run test:platform
+
+      - name: Typecheck and validate generated artifact
+        run: |
+          npm run typecheck
+          npm run validate:artifact
+
+      - name: Pack and smoke-test all executable entries
+        shell: bash
+        run: |
+          set -euo pipefail
+          package_root=$(mktemp -d)
+          install_root=$(mktemp -d)
+          npm pack --pack-destination "$package_root"
+          package_files=("$package_root"/*.tgz)
+          test -f "${package_files[0]}"
+          test "${#package_files[@]}" -eq 1
+          npm install --global --prefix "$install_root" "${package_files[0]}"
+          bin_dir="$install_root/bin"
+          if [ ! -e "$bin_dir/gbot" ]; then
+            bin_dir="$install_root"
+          fi
+          "$bin_dir/gbot" --version
+          "$bin_dir/gbot" --help
+          "$bin_dir/grok-bot" --help
+          "$bin_dir/gbot-install" --help

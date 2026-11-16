@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import childProcess from "node:child_process";
 import crypto from "node:crypto";
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { syncBuiltinESMExports } from "node:module";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import test from "node:test";
@@ -59,6 +61,16 @@ function unprotectDemoKey(blob) {
   return WINDOWS_KEY;
 }
 
+function mockExecFileSync(t, handler) {
+  const original = childProcess.execFileSync;
+  t.mock.method(childProcess, "execFileSync", handler(original));
+  syncBuiltinESMExports();
+  t.after(() => {
+    t.mock.restoreAll();
+    syncBuiltinESMExports();
+  });
+}
+
 test("decrypts an Electron Safe Storage v10 string", () => {
   const clear = decryptSafeStorageString(
     ENCRYPTED_DESCRIPTOR,
@@ -95,6 +107,27 @@ test("loads the signed-in Grok Bot gateway without manual tokens", () => {
     gatewayToken: "gateway-token",
     headers: { "x-anyrun-network-token": "route-token" },
   });
+});
+
+test("macOS default keychain lookup uses the Grok Bot service contract", (t) => {
+  const home = writeWrappedDescriptor({ version: 1, encrypted: ENCRYPTED_DESCRIPTOR });
+  const calls = [];
+  mockExecFileSync(t, (original) => (file, args, options) => {
+    if (file === "/usr/bin/security") {
+      calls.push({ file, args, options });
+      return "demo-password\n";
+    }
+    return original(file, args, options);
+  });
+
+  const session = loadGrokBotGatewaySession({ platform: "darwin", home });
+
+  assert.equal(session.gatewayToken, "gateway-token");
+  assert.deepEqual(calls, [{
+    file: "/usr/bin/security",
+    args: ["find-generic-password", "-w", "-s", "Grok Bot Safe Storage"],
+    options: { encoding: "utf8" },
+  }]);
 });
 
 for (const version of [2, 3]) {
@@ -299,6 +332,29 @@ test("loads a Linux v11 descriptor with the Secret Service password", () => {
   });
 });
 
+test("Linux default Secret Service lookup uses the Chromium schema contract", (t) => {
+  const home = writeLinuxDescriptor(
+    encryptLinuxSafeStorage(LINUX_DESCRIPTOR, "v11", "keyring-password"),
+  );
+  const calls = [];
+  mockExecFileSync(t, (original) => (file, args, options) => {
+    if (file === "secret-tool") {
+      calls.push({ file, args, options });
+      return "keyring-password\n";
+    }
+    return original(file, args, options);
+  });
+
+  const session = loadGrokBotGatewaySession({ platform: "linux", home, env: {} });
+
+  assert.equal(session.gatewayToken, "gateway-token");
+  assert.deepEqual(calls, [{
+    file: "secret-tool",
+    args: ["lookup", "xdg:schema", "chrome_libsecret_os_crypt_password_v2", "application", "Grok Bot"],
+    options: { encoding: "utf8" },
+  }]);
+});
+
 test("loads a Linux v10 (basic_text) descriptor without touching the keyring", () => {
   const home = writeLinuxDescriptor(
     encryptLinuxSafeStorage(LINUX_DESCRIPTOR, "v10", "peanuts"),
@@ -392,6 +448,26 @@ test("loads the signed-in Grok Bot gateway on Windows", () => {
     gatewayToken: "gateway-token",
     headers: { "x-anyrun-network-token": "route-token" },
   });
+});
+
+test("Windows default DPAPI lookup uses a noninteractive PowerShell call", (t) => {
+  const appData = writeWindowsAppData(WINDOWS_LOCAL_STATE);
+  const calls = [];
+  mockExecFileSync(t, (original) => (file, args, options) => {
+    if (String(file).toLowerCase().endsWith("powershell.exe")) {
+      calls.push({ file, args, options });
+      return WINDOWS_KEY.toString("base64") + "\n";
+    }
+    return original(file, args, options);
+  });
+
+  const session = loadGrokBotGatewaySession({ platform: "win32", home: "/tmp/unused", appData });
+
+  assert.equal(session.gatewayToken, "gateway-token");
+  assert.equal(calls.length, 1);
+  assert.deepEqual(calls[0].args.slice(0, 3), ["-NoProfile", "-NonInteractive", "-Command"]);
+  assert.equal(calls[0].options.encoding, "utf8");
+  assert.equal(calls[0].options.input, Buffer.from("demo-dpapi-blob").toString("base64"));
 });
 
 test("loads a version 3 Windows descriptor through the DPAPI key provider", () => {
