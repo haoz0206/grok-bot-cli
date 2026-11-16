@@ -4,6 +4,10 @@
 
 Maintained fork of [ScriptedAlchemy/grok-bot-cli](https://github.com/ScriptedAlchemy/grok-bot-cli), distributed from [haoz0206/grok-bot-cli](https://github.com/haoz0206/grok-bot-cli). The upstream authors and MIT license are retained.
 
+This fork periodically incorporates upstream updates and maintains its own features
+and fixes. It has an independent npm release history. See [Maintain this fork](#maintain-this-fork)
+for repository roles and the upstream sync process.
+
 Manage [Grok Bot](https://cursor.com/help/grok-bot/plans) agents, groups, and messages from your terminal.
 
 Upstream demo of create, group, send, and delete. This is upstream evidence, not runtime verification of this fork.
@@ -415,29 +419,91 @@ gbot history --path
 `--no-history` to skip one command. New dirs are `0700`, files `0600`. Conversation
 text is recorded as you typed it; gateway credentials and raw response metadata are not.
 
-## Set up fork releases
+## Maintain this fork
 
-The root `package.json` uses `publishConfig` to select the public npm registry and
-public access for `@haoz0206/grok-bot-cli`. Publish only through
-[`.github/workflows/release.yml`](.github/workflows/release.yml), using the existing
-Changesets flow and GitHub OIDC. The package release script is a workflow entrypoint.
+Use these repository and package identities when developing or syncing changes:
 
-Before a release, complete the npm-side package and trusted publisher setup for
-`@haoz0206/grok-bot-cli` with these GitHub fields:
+| Role | GitHub repository | npm package | Git remote |
+| --- | --- | --- | --- |
+| Original upstream | [ScriptedAlchemy/grok-bot-cli](https://github.com/ScriptedAlchemy/grok-bot-cli) | `grok-bot-cli` | `upstream` |
+| Maintained fork | [haoz0206/grok-bot-cli](https://github.com/haoz0206/grok-bot-cli) | `@haoz0206/grok-bot-cli` | `origin` |
 
-| Field | Value |
-| --- | --- |
-| Owner | `haoz0206` |
-| Repository | `grok-bot-cli` |
-| Workflow filename | `release.yml` |
-| Environment | Leave unset |
-| Permission | Allow `npm publish` |
+Both repositories use `main`. Push this fork's work to `origin`. Use `upstream`
+to fetch and review original-project changes. The remote names are conventions
+for each checkout, not a claim that both remotes are already configured.
 
-[npm's trust documentation](https://docs.npmjs.com/cli/v11/commands/npm-trust/)
-requires the package to already exist in the registry. A new package may therefore
-remain blocked on npm-side bootstrap before trusted publishing can be configured.
-Repository configuration does not verify npm account settings or complete that setup.
-Verify the Release workflow and the published registry version before updating installations.
+### Sync upstream changes
+
+Start with a clean working tree. Inspect `git remote -v` and confirm that `origin`
+points to `git@github.com:haoz0206/grok-bot-cli.git`. If `upstream` is absent, add it:
+
+```sh
+git remote add upstream https://github.com/ScriptedAlchemy/grok-bot-cli.git
+```
+
+If `upstream` already exists, verify its URL before fetching. Create a new sync
+branch from the fork's current `main`, then review incoming commits and changes:
+
+```sh
+git switch main
+git pull --ff-only origin main
+git fetch upstream
+git switch -c sync/upstream-update
+git log --oneline main..upstream/main
+git diff main...upstream/main
+```
+
+Use a fresh branch name for each sync. To incorporate the reviewed upstream history,
+merge on that branch and inspect the result before committing:
+
+```sh
+git merge --no-ff --no-commit upstream/main
+```
+
+Resolve conflicts while preserving the fork's behavior and identity:
+
+- Keep `@haoz0206/grok-bot-cli` in package metadata, the lockfile, and pending Changesets.
+  Keep repository, homepage, and issue links pointed at `haoz0206/grok-bot-cli`.
+- Keep public npm access, the fork's release workflow repository guard, and its OIDC
+  publisher settings. Let this fork's Changesets flow choose release versions.
+  Upstream version numbers do not require matching versions here.
+- Review incoming pending Changesets. Retarget applicable entries to the scoped package
+  and remove entries already covered by a fork release. Preserve published changelog history.
+- Preserve local fixes and features. If upstream now fixes the same problem, verify
+  that it covers the fork's behavior before removing the duplicate implementation.
+- Keep the existing CLI commands, `gbot` plugin identity, and data paths unless a
+  deliberate migration changes them. Preserve upstream attribution and the MIT license.
+
+After resolving source and dependency changes, run `npm ci` and `npm run check`.
+The check rebuilds `artifact/`; commit the regenerated bundle and marketplace files
+with the source changes. Add a scoped Changeset for shipped changes, including README
+changes covered by `.changeset/config.json`. Open the sync PR against this fork's `main`
+and describe any conflicts and retained fork differences.
+
+### Maintain fork features and fixes
+
+Develop fork changes on branches from `origin/main`. Keep each feature or fix in a
+focused commit, verify the affected behavior, and add a Changeset for the scoped package.
+Run `npm run check` before merging. Keep upstream syncs separate from new fork work
+so later syncs can identify which behavior must be preserved.
+
+Submit generally useful fixes upstream when appropriate. A fix can ship in this fork
+before upstream accepts it. Periodic syncs are reviewed maintenance work, not an
+automatic replacement of this fork with upstream `main`.
+
+## Release this fork
+
+Follow the [commit-to-npm release guide](https://github.com/haoz0206/grok-bot-cli/blob/main/docs/releasing.md)
+for agent-assisted publishing, manual GitHub Actions steps, and release verification.
+
+Commit saves local changes; push uploads them to GitHub. Changesets on `main`
+prepare a `Release packages` PR. Merging that PR triggers publication of
+`@haoz0206/grok-bot-cli` through GitHub Actions and OIDC. A manual Release run follows
+the same flow; with pending Changesets it prepares the PR instead of publishing.
+
+Several commits can share one npm release. Publish only through `release.yml` and
+verify both the matching Actions run and the npm version before updating installations.
+Do not publish locally or repeat the completed first-package setup.
 
 ## License
 
