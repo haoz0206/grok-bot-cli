@@ -1,5 +1,11 @@
 # grok-bot-cli
 
+## 0.12.8
+
+### Patch Changes
+
+- 8aff40b: Require GitHub environment approval before npm publish, and wake zstack when main moves with only the repository, ref, and commit SHA.
+
 ## 0.12.7
 
 ### Patch Changes
