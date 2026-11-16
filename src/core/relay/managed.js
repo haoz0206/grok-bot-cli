@@ -65,10 +65,17 @@ export async function ensureRelayWorker(options = {}) {
     if (!unavailable(error)) throw error;
   }
   const workerPath = await resolveRelayWorker(options);
+  const workerEnv = {
+    ...location.env,
+    GROK_BOT_RELAY_DIR: location.stateDir,
+  };
+  // Node's test-runner markers belong to the caller, not the detached worker.
+  delete workerEnv.NODE_TEST_CONTEXT;
+  delete workerEnv.NODE_TEST_WORKER_ID;
   const child = spawn(process.execPath, [workerPath], {
     detached: true,
     stdio: "ignore",
-    env: { ...location.env, GROK_BOT_RELAY_DIR: location.stateDir },
+    env: workerEnv,
     cwd: dirname(workerPath),
   });
   let spawnError;

@@ -66362,15 +66362,18 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                 if (!unavailable1(error)) throw error;
             }
             const workerPath = await resolveRelayWorker(options);
+            const workerEnv = {
+                ...location.env,
+                GROK_BOT_RELAY_DIR: location.stateDir
+            };
+            delete workerEnv.NODE_TEST_CONTEXT;
+            delete workerEnv.NODE_TEST_WORKER_ID;
             const child = (0, node_child_process__rspack_import_0.spawn)(process.execPath, [
                 workerPath
             ], {
                 detached: true,
                 stdio: "ignore",
-                env: {
-                    ...location.env,
-                    GROK_BOT_RELAY_DIR: location.stateDir
-                },
+                env: workerEnv,
                 cwd: (0, node_path__rspack_import_2.dirname)(workerPath)
             });
             let spawnError;
