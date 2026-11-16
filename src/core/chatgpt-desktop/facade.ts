@@ -274,7 +274,8 @@ export class ChatGptDesktopFacade implements ChatGptDesktopAdapter {
   async listHosts(): Promise<ListHostsResult> {
     const filters = JSON.stringify({ host: 'all', modelProvider: null, project: null, groupBy: null });
     const cached = [...this.#listSnapshots.values()].find((snapshot) => snapshot.kind === 'list'
-      && snapshot.port === this.#port && snapshot.filters === filters && Date.now() - snapshot.createdAt < 15 * 60_000);
+      && snapshot.appComplete && snapshot.port === this.#port && snapshot.filters === filters
+      && Date.now() - snapshot.createdAt < 15 * 60_000);
     const inventory = cached?.kind === 'list' ? cached : await this.#buildListSnapshot({}, filters);
     const counts = new Map<string, number>();
     for (const thread of inventory.rows) {

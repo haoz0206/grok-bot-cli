@@ -105,6 +105,22 @@ it('keeps earlier inventory pages when a later app-server RPC fails', async () =
   expect(rpc.mock.calls).toHaveLength(2);
 });
 
+it('refreshes host inventory after a partial app-server failure recovers', async () => {
+  let recovered = false;
+  const desktop = facade([], {
+    listThreads: async ({ cursor } = {}) => {
+      if (cursor && !recovered) throw new Error('temporary second-page failure');
+      return recovered
+        ? { backend: 'app-server', limit: 200, threads: [row('first'), row('second')] }
+        : { backend: 'app-server', limit: 200, threads: [row('first')], nextCursor: 'next' };
+    },
+  }, async () => offline());
+
+  expect((await desktop.listHosts()).hosts.find(host => host.hostId === 'local')?.threadCount).toBe(1);
+  recovered = true;
+  expect((await desktop.listHosts()).hosts.find(host => host.hostId === 'local')?.threadCount).toBe(2);
+});
+
 it('treats successful empty app inventory as reachable when CDP is offline', async () => {
   const desktop = facade([], {}, async () => offline());
   expect(await desktop.listThreads()).toMatchObject({ backend: 'app-server', threads: [], nextCursor: null });

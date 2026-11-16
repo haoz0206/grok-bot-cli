@@ -137,6 +137,55 @@ test("redacts bearer, basic, cookie, and token-like fields", () => {
   assert.doesNotMatch(out, /keepsecret/);
 });
 
+test("redacts quoted authorization fields with scheme credentials", () => {
+  const jsonRedacted = redactSecrets('{"authorization":"Basic SECRET_TOKEN"}');
+  assert.doesNotThrow(() => JSON.parse(jsonRedacted));
+  assert.doesNotMatch(jsonRedacted, /SECRET_TOKEN/);
+  assert.equal(redactSecrets(jsonRedacted), jsonRedacted);
+
+  const shellRedacted = redactSecrets("{'proxy-authorization': 'Basic SECRET_TOKEN'}");
+  assert.doesNotMatch(shellRedacted, /SECRET_TOKEN/);
+  assert.equal(redactSecrets(shellRedacted), shellRedacted);
+});
+
+test("redacts quoted shell authorization headers and multiline values", () => {
+  const inputs = [
+    "'Authorization: Basic SECRET_TOKEN'",
+    `curl -H 'Proxy-Authorization: Basic SECRET_TOKEN' --verbose`,
+    `'authorization': 'Basic SECRET
+TOKEN'`,
+  ];
+  for (const input of inputs) {
+    const redacted = redactSecrets(input);
+    assert.doesNotMatch(redacted, /SECRET_TOKEN|SECRET|TOKEN/);
+    assert.equal(redactSecrets(redacted), redacted);
+  }
+});
+
+test("does not swallow diagnostics after an incomplete quoted authorization value", () => {
+  const inputs = [
+    [`'authorization': 'Basic SECRET
+Status: 'failed'`, /Status: 'failed'/],
+    [`'authorization': 'Basic SECRET
+Status: failed
+Next: 'keep'`, /Status: failed\nNext: 'keep'/],
+  ];
+  for (const [input, preserved] of inputs) {
+    const redacted = redactSecrets(input);
+    assert.doesNotMatch(redacted, /SECRET/);
+    assert.match(redacted, preserved);
+    assert.equal(redactSecrets(redacted), redacted);
+  }
+});
+
+test("redacts field-shaped continuation inside a quoted authorization value", () => {
+  const input = `'authorization': 'Basic FIRST
+X-Thing: SECOND_SECRET'`;
+  const redacted = redactSecrets(input);
+  assert.doesNotMatch(redacted, /FIRST|SECOND_SECRET/);
+  assert.equal(redactSecrets(redacted), redacted);
+});
+
 test("redaction removes every cookie value and preserves following diagnostics", () => {
   const inputs = [
     "Cookie: sid=FIRST_FAKE; refresh=SECOND_FAKE; login=THIRD_FAKE",

@@ -10258,7 +10258,7 @@ var __webpack_modules__ = {
                 });
                 const cached = [
                     ...this.#listSnapshots.values()
-                ].find((snapshot)=>snapshot.kind === 'list' && snapshot.port === this.#port && snapshot.filters === filters && Date.now() - snapshot.createdAt < 15 * 60000);
+                ].find((snapshot)=>snapshot.kind === 'list' && snapshot.appComplete && snapshot.port === this.#port && snapshot.filters === filters && Date.now() - snapshot.createdAt < 15 * 60000);
                 const inventory = cached?.kind === 'list' ? cached : await this.#buildListSnapshot({}, filters);
                 const counts = new Map();
                 for (const thread of inventory.rows){
@@ -29847,12 +29847,15 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
         function redactSecrets(text) {
             let s = String(text);
             s = s.replace(/((?:"(?:set-cookie|cookie)"|'(?:set-cookie|cookie)')\s*[:=]\s*)(["'])(?:\\.|(?!\2)[^\\\r\n])*\2/gi, "$1$2<redacted>$2");
-            const cookieHeaders = new RegExp([
+            const diagnosticLine = String.raw`(?:status|next|message|error|warning|code|details|stack|reason|timestamp|stdout|stderr|result|response|request|cause|name|type|path|command|method|url)\s*[:=](?:(?:[^'"\r\n]|'(?:\\.|[^'\\\r\n])*'|"(?:\\.|[^"\\\r\n])*")*)`;
+            s = s.replace(new RegExp(String.raw`((?:"(?:authorization|proxy-authorization)"|'(?:authorization|proxy-authorization)')\s*[:=]\s*)(["'])(?:\\.|(?!\2)(?!\r?\n[ \t]*${diagnosticLine}\r?$)[^\\])*\2`, "gi"), "$1$2<redacted>$2");
+            s = s.replace(/((?:"(?:authorization|proxy-authorization)"|'(?:authorization|proxy-authorization)')\s*[:=]\s*)(["'])(?:\\.|(?!\2)[^\\\r\n])*(?=\r?$)/gmi, "$1$2<redacted>$2");
+            const credentialHeaders = new RegExp([
                 String.raw`(?<jsonPrefix>[:\[,]\s*)(?<jsonValue>"(?:\\(?:["\\/bfnrt]|u[0-9a-f]{4})|[^"\\\u0000-\u001f])*")`,
-                String.raw`(?<shellPrefix>(?:^|[^\s:\[,])[ \t]*)(?:'(?<single>(?:set-cookie|cookie)\s*[:=])[^'\r\n]*(?:'|(?=\r?$))|"(?<double>(?:set-cookie|cookie)\s*[:=])(?:\\.|[^"\\\r\n])*(?:"|(?=\r?$)))(?:'[^'\r\n]*'|"(?:\\.|[^"\\\r\n])*"|\\[^\r\n]|[^\s'"\\;&|<>()])*`,
+                String.raw`(?<shellPrefix>(?:^|[^\s:\[,])[ \t]*)(?:'(?<single>(?:set-cookie|cookie|authorization|proxy-authorization)\s*[:=])[^'\r\n]*(?:'|(?=\r?$))|"(?<double>(?:set-cookie|cookie|authorization|proxy-authorization)\s*[:=])(?:\\.|[^"\\\r\n])*(?:"|(?=\r?$)))(?:'[^'\r\n]*'|"(?:\\.|[^"\\\r\n])*"|\\[^\r\n]|[^\s'"\\;&|<>()])*`,
                 String.raw`(?<headerPrefix>^|[\s,{;])(?<header>(?:set-cookie|cookie)\s*[:=])[^\r\n]*?(?=\s+(?:set-cookie|cookie|authorization|proxy-authorization)\s*:|\r?$)`
             ].join("|"), "gmi");
-            s = s.replace(cookieHeaders, (...args)=>{
+            s = s.replace(credentialHeaders, (...args)=>{
                 const { jsonPrefix, jsonValue, shellPrefix, single, double, headerPrefix, header } = args.at(-1);
                 if (jsonValue !== undefined) return jsonPrefix + JSON.stringify(redactSecrets(JSON.parse(jsonValue)));
                 if (shellPrefix !== undefined) return shellPrefix + (single ? `'${single} <redacted>'` : `"${double} <redacted>"`);
