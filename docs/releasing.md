@@ -78,7 +78,7 @@ Package CI 在 `changeset-release/main` 的未合并 PR 上运行 `check_release
 
 `version` job 仍把 `secrets.GITHUB_TOKEN` 交给 Changesets。按 [Triggering a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)，用 `GITHUB_TOKEN` 打开或更新的 `pull_request` 会进入需要批准的运行，不会自动开始 CI。官方写明：改用 GitHub App installation token 或 PAT 才能让这种 PR 自动跑 workflow。本仓库不使用 PAT。专用 App 不在这次实现里，也不要把运维用的 `gh` OAuth 写进 workflow。
 
-合并只改 workflow 或源码的提交时，`release-candidate` 输出 `skip`，`publish` 不启动，不会出现 `npm-publish` 批准。像发布但 diff 不纯的提交让候选 job 失败，workflow 失败，同样不请求 Environment。这和普通跳过不是同一种结果。批准之后的 tip 和 `run_attempt` 校验仍然执行；候选通过并不取消它们。读 tip 和 `npm publish` 之间仍可能有新 push，没有和 registry 绑在一起的原子锁。
+合并只改 workflow、源码，或只更新 manifest / compile-evidence 的源码快照时，`release-candidate` 输出 `skip`，`publish` 不启动，不会出现 `npm-publish` 批准。manifest 本身不算一次发布；只有版本、changelog、被消费的 changeset 或版本回写文件出现时才进入严格校验。像发布但 diff 不纯的提交让候选 job 失败，workflow 失败，同样不请求 Environment。这和普通跳过不是同一种结果。批准之后的 tip 和 `run_attempt` 校验仍然执行；候选通过并不取消它们。读 tip 和 `npm publish` 之间仍可能有新 push，没有和 registry 绑在一起的原子锁。
 
 所以，点击 **Run workflow** 不一定立刻发布 npm。准备发版 PR 的运行可以成功，
 但那次运行不证明 npm 已有新版本。不要靠反复运行工作流来增加版本号。
