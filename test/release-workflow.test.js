@@ -40,8 +40,14 @@ test("release publish is the only npm publish entry and waits on npm-publish", (
   assert.match(publish, /id-token: write/);
   assert.match(publish, /check_npm_publish_environment\.py/);
   const guardAt = publish.indexOf("check_npm_publish_environment.py");
+  const packAt = publish.indexOf("Pack and smoke-test the executable");
+  const commitAt = publish.indexOf("check_publish_commit.py");
   const publishAt = publish.indexOf("publish-script: npm run release");
-  assert.ok(guardAt !== -1 && guardAt < publishAt);
+  assert.ok(guardAt !== -1 && packAt !== -1 && commitAt !== -1);
+  assert.ok(guardAt < packAt && packAt < commitAt && commitAt < publishAt);
+  assert.match(publish, /ref: \$\{\{ github\.sha \}\}/);
+  assert.match(publish, /PUBLISH_RUN_ATTEMPT: \$\{\{ github\.run_attempt \}\}/);
+  assert.match(release, /cancel-in-progress: true/);
   assert.match(publish, /publish-script: npm run release/);
   assert.equal(release.match(/publish-script: npm run release/g).length, 1);
   assert.match(version, /version-script: npm run release:version/);

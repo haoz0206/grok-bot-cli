@@ -9,8 +9,10 @@ permissions:
   contents: read
 
 concurrency:
-  # A newer main push cancels an unapproved publish, so only the latest SHA
-  # can still be approved. Older SHAs do not remain queued for publication.
+  # A newer main push cancels a queued, waiting, or in-progress run in this
+  # group. Cancellation is not instant and does not roll back npm. The
+  # publish job also refuses to publish unless this SHA is still the remote
+  # main tip immediately before npm publish.
   group: changesets-release-${{ github.ref }}
   cancel-in-progress: true
 
@@ -127,6 +129,7 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ github.sha }}
           fetch-depth: 0
 
       - name: Require protected npm-publish environment
@@ -167,6 +170,15 @@ jobs:
           npm exec --prefix "$install_root" --no -- gbot --help
           npm exec --prefix "$install_root" --no -- grok-bot --help
           npm exec --prefix "$install_root" --no -- gbot-install --help
+
+      - name: Require this attempt to publish the validated main tip
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NPM_PUBLISH_REPOSITORY: ${{ github.repository }}
+          PUBLISH_GITHUB_SHA: ${{ github.sha }}
+          PUBLISH_GITHUB_REF: ${{ github.ref }}
+          PUBLISH_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: python3 .github/release/check_publish_commit.py
 
       - name: Publish released packages
         id: changesets
