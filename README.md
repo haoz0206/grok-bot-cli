@@ -497,10 +497,9 @@ Follow the [commit-to-npm release guide](https://github.com/haoz0206/grok-bot-cl
 for agent-assisted publishing, manual GitHub Actions steps, and release verification.
 
 Commit saves local changes; push uploads them to GitHub. Changesets on `main`
-prepare a `Release packages` PR. Merging that PR starts the publish job for that
-commit. npm publish still waits for the `npm-publish` approval and the pre-publish
-checks in the release guide. A manual Release run follows the same flow; with
-pending Changesets it prepares the PR instead of publishing.
+prepare a `Release packages` PR. Merging that PR triggers publication of
+`@haoz0206/grok-bot-cli` through GitHub Actions and OIDC. A manual Release run follows
+the same flow; with pending Changesets it prepares the PR instead of publishing.
 
 Several commits can share one npm release. Publish only through `release.yml` and
 verify both the matching Actions run and the npm version before updating installations.
