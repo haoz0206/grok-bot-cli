@@ -57,16 +57,28 @@ Fix delivery receipts for server-hosted bots.
 | Job | 何时运行 | 是否等待批准 | 结果 |
 | --- | --- | --- | --- |
 | `version` | `main` 上还有待发布 Changeset | 否 | 创建或更新 `Release packages` PR。没有 `id-token`，也没有 `publish-script` |
-| `publish` | `main` 上没有待发布 Changeset | 是，GitHub Environment `npm-publish` | 批准后才执行 `npm run release`，并创建 GitHub Release |
+| `release-candidate` | 每次 `main` 上的 Release | 否 | 只读。纯版本候选输出 `publish`；普通提交输出 `skip`；像发布但不纯的提交失败 |
+| `publish` | `release-candidate` 的 decision 是 `publish` | 是，GitHub Environment `npm-publish` | 批准后还要通过发布前校验，才执行 `npm run release`，并创建 GitHub Release |
 | 两者之外 | 手动触发的 ref 不是 `main` | 否 | 工作流失败，不发布 |
 
-`publish` 在步骤开始前等待 Environment 批准。生成版本 PR 的 job 不使用该 Environment。
+`publish` 只有在候选 job 成功并且 decision 为 `publish` 时才会被调度。GitHub 不会为被跳过的 job 请求 Environment。普通源码、workflow 或基础设施提交停在 `skip`，不用拒绝部署。生成版本 PR 的 job 和候选 job 都不使用该 Environment。
 发布命令之前还有一道只读校验：`npm-publish` 必须有 required reviewer `haoz0206`（id `236642726`），`prevent_self_review` 为 false，并且部署分支恰好是 `main`。校验失败就不执行 `npm run release`。
 zstack 对发版 PR 的审查是仓库外的审核，不是 GitHub required reviewer。
 Environment 的 required reviewer 是 GitHub 用户 `haoz0206`。`prevent_self_review` 必须保持关闭，否则唯一批准人无法批准自己触发的部署。
 
-当前 `main` 若没有待发布 Changeset，合并只改 workflow 的 PR 也会排队 `publish`。
-在批准部署之前不会执行 `npm publish`。不打算重跑已发布版本时，拒绝该部署。
+批准只让 `publish` job 开始。`npm run release` 之前，`check_publish_commit.py` 再失败关闭：
+
+- `github.run_attempt` 必须是 `1`。这不能撤销 GitHub 已经记下的 Environment 批准。若 GitHub 复用批准并启动了 job，该步骤在 `npm run release` 之前退出。
+- 一次 `GET /repos/haoz0206/grok-bot-cli/git/ref/heads/main` 读到的 commit 必须等于本次 `github.sha`，checkout 也固定在这个 SHA。这不是和 npm 发布绑在一起的原子锁。读完之后仍可能有新的 push。`cancel-in-progress: true` 会取消同一组里尚未结束的运行，包括还在等批准的运行，但取消不是即时的，也不能撤回已经开始的 npm 发布。
+- 该提交相对第一父提交的差异必须是纯版本候选：`package.json` 只改版本，CHANGELOG 只在开头增加对应版本，删除的只是已消费的 `.changeset/*.md`，列出的版本回写文件只能替换版本字符串。manifest 和 compile-evidence 里的文件哈希必须等于对应 blob 的 sha256。`modelDigest` 和 `revision` 只检查是 64 位十六进制，本脚本不重算 agent-bundle 的聚合算法；同一次 job 里更早的 `npm run validate:artifact` 仍负责这组聚合。源码、workflow、依赖或其他路径失败。工作区里的 `package.json` 必须和该提交的字节一致。
+
+Package CI 在 `changeset-release/main` 的未合并 PR 上运行 `check_release_pull_request.py`，用同一种 diff 规则。它不读取 Actions check runs，也不合并。普通 PR 跳过这一步。
+
+`evaluate_release_pr` 还要求上述 diff，并且 Package CI 的 `package`、三个 `platform` 和 `Changeset present` 都在这个 head SHA 上成功。没有任何 workflow 调用它。以后若要自动合并，只能在这些检查真实成功之后调用它。现在不自动合并。
+
+`version` job 仍把 `secrets.GITHUB_TOKEN` 交给 Changesets。按 [Triggering a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)，用 `GITHUB_TOKEN` 打开或更新的 `pull_request` 会进入需要批准的运行，不会自动开始 CI。官方写明：改用 GitHub App installation token 或 PAT 才能让这种 PR 自动跑 workflow。本仓库不使用 PAT。专用 App 不在这次实现里，也不要把运维用的 `gh` OAuth 写进 workflow。
+
+合并只改 workflow 或源码的提交时，`release-candidate` 输出 `skip`，`publish` 不启动，不会出现 `npm-publish` 批准。像发布但 diff 不纯的提交让候选 job 失败，workflow 失败，同样不请求 Environment。这和普通跳过不是同一种结果。批准之后的 tip 和 `run_attempt` 校验仍然执行；候选通过并不取消它们。读 tip 和 `npm publish` 之间仍可能有新 push，没有和 registry 绑在一起的原子锁。
 
 所以，点击 **Run workflow** 不一定立刻发布 npm。准备发版 PR 的运行可以成功，
 但那次运行不证明 npm 已有新版本。不要靠反复运行工作流来增加版本号。
@@ -76,6 +88,7 @@ Environment 的 required reviewer 是 GitHub 用户 `haoz0206`。`prevent_self_r
 用户可以明确说“把这批修改发布到 npm”，或“合并发版 PR 并验证发布结果”。
 在授权范围明确时，agent 按以下步骤完成工作，不需要为同一发布反复索要确认。
 如果用户只要求 commit、push、准备 PR 或更新文档，不合并发版 PR，也不触发可能发布的工作流。
+用户已经明确授权发布某一个验证过的 commit 时，不必为同一次发布里的检查、推送、等待 CI 反复确认。仍要停下来的是：`npm-publish` 批准，以及 `run_attempt` 大于 1 之后改由人新建一次 workflow run。不要自行重跑，也不要自动 dispatch。
 如果用户保留了手动合并权，则在 PR 就绪时交接。
 
 1. 确认本次发布范围，读取 `AGENTS.md` 和本指南，检查工作区、远程 `main`、待发布 Changeset、
@@ -170,7 +183,8 @@ npm install --global "@haoz0206/grok-bot-cli@$release_version" --registry=https:
 
 - **npm 暂时返回 404。** 发布处理可能延迟。现有工作流最多等待约 20 分钟查询目标版本。
   等待期间报告“发布仍待 registry 确认”，不要提前宣布成功或重复发布。
-- **已有 Release 正在运行。** 跟踪原运行。相同分支的新运行会取消旧运行，避免重复点击。
+- **已有 Release 正在运行。** 跟踪原运行。相同分支的新运行会取消旧运行，避免重复点击。取消不是和 npm 发布绑在一起的锁。
+- **不要重跑 publish 来补发。** [Re-running workflows and jobs](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs) 写明重跑沿用最初那次的 `GITHUB_SHA` 和 `GITHUB_REF`，重跑失败 job 时依赖它的 job 也会重跑。`github.run_attempt` 从 1 开始，每次重跑加 1。批准记录和 pending deployments 的 REST 路径都挂在 workflow run id 上，没有 attempt 参数。重跑文档没有写会再次弹出 required reviewer，也没有让本仓库 workflow 撤销已有批准的接口。因此 `run_attempt` 不是 `1` 时 `publish` 失败。补救是新的 workflow run（新的 run id，attempt 为 1）：新的 `main` push，或由人在当前 `main` 上重新 Run workflow。不要自动 dispatch。代价是发布失败后不能用 Re-run failed jobs 接着发布，必须重新准备一次运行并再次批准。已经发布过的同一提交如果再次进入 `publish`，版本校验仍可能通过，随后由 npm 拒绝覆盖已有版本；不打算再发布时不要批准。
 - **工作流失败。** 查看对应运行的失败步骤和日志，区分构建、权限、发布和 registry 验证失败。
   修复实际问题后，在 `main` 重试；不要重跑旧提交来代替验证已经改变的代码。
 - **PR 检查没有运行。** 2026-11-15 的 [Package CI run 43738853007](https://github.com/haoz0206/grok-bot-cli/actions/runs/43738853007)

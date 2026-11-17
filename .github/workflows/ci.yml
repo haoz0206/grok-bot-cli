@@ -18,6 +18,25 @@ jobs:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
+      - name: Reject a release pull request that is not a pure version diff
+        if: >
+          github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.event.pull_request.head.ref == 'changeset-release/main' &&
+          github.event.pull_request.base.ref == 'main'
+        env:
+          RELEASE_REPOSITORY: ${{ github.repository }}
+          RELEASE_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          RELEASE_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          RELEASE_BASE_REPO: ${{ github.event.pull_request.base.repo.full_name }}
+          RELEASE_HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          RELEASE_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          RELEASE_HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          RELEASE_PR_STATE: ${{ github.event.pull_request.state }}
+          RELEASE_PR_DRAFT: ${{ github.event.pull_request.draft }}
+          RELEASE_PR_MERGED: ${{ github.event.pull_request.merged }}
+        run: python3 .github/release/check_release_pull_request.py
+
       - name: Set up Node.js
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
@@ -32,6 +51,7 @@ jobs:
           node --test test/release-config.test.js test/release-workflow.test.js
           python3 .github/zstack/test_notify_zstack.py
           python3 .github/release/test_npm_publish_environment.py
+          python3 .github/release/test_release_candidate.py
 
       - name: Validate, build, typecheck, and test
         run: npm run check
