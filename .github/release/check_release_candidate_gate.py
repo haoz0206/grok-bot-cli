@@ -33,7 +33,11 @@ def is_release_surface(status: str, path: str) -> bool:
     Adding a `.changeset/*.md` is how feature commits record a future
     release. Deleting one is changeset consumption and is release-shaped.
     """
-    if path in {"package.json", "CHANGELOG.md", candidate.MANIFEST, candidate.EVIDENCE}:
+    # Manifest and compile-evidence hashes move when any tracked source file
+    # changes. That snapshot update is not itself a release. They are still
+    # checked strictly once a version, changelog, consumed changeset, or
+    # version-echo file shows this commit is trying to publish.
+    if path in {"package.json", "CHANGELOG.md"}:
         return True
     if candidate.is_version_echo(path):
         return True

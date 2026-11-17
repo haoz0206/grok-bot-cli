@@ -715,6 +715,37 @@ class CandidateGateTests(unittest.TestCase):
         self.assertEqual(gate.decide_release_candidate(self.repo, "1"), "skip")
         self.assertEqual(gate.decide_release_candidate(self.repo, "2"), "skip")
 
+    def test_manifest_snapshot_with_added_files_skips(self):
+        self.repo = tempfile.mkdtemp(prefix="release-gate-")
+        _git(self.repo, "init", "-b", "main")
+        _commit_tree(
+            self.repo,
+            {
+                "package.json": PKG_BEFORE,
+                candidate.MANIFEST: '{"files":[]}\n',
+            },
+        )
+        added = Path(self.repo) / ".github" / "release" / "check_publish_commit.py"
+        added.parent.mkdir(parents=True, exist_ok=True)
+        added.write_text("print('gate')\n", encoding="utf-8")
+        manifest = Path(self.repo) / candidate.MANIFEST
+        manifest.write_text('{"files":["check_publish_commit.py"]}\n', encoding="utf-8")
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "commit", "-m", "snapshot")
+        self.assertEqual(gate.decide_release_candidate(self.repo, "1"), "skip")
+
+    def test_version_echo_without_a_clean_release_fails(self):
+        self.repo = tempfile.mkdtemp(prefix="release-gate-")
+        _git(self.repo, "init", "-b", "main")
+        _commit_tree(self.repo, {ECHO_PATH: ECHO, "package.json": PKG_BEFORE})
+        echo = Path(self.repo) / ECHO_PATH
+        echo.write_text(ECHO_AFTER + "eval(1);\n", encoding="utf-8")
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "commit", "-m", "tamper")
+        with self.assertRaises(gate.ReleaseCheckError) as caught:
+            gate.decide_release_candidate(self.repo, "1")
+        self.assertIn("invalid release candidate", str(caught.exception))
+
     def test_added_changeset_is_not_a_release_attempt(self):
         self.repo = tempfile.mkdtemp(prefix="release-gate-")
         _git(self.repo, "init", "-b", "main")
