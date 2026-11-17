@@ -804,25 +804,31 @@ def _repo_with_release_commits() -> str:
     env = os.environ.copy()
     env["GIT_TERMINAL_PROMPT"] = "0"
     subprocess.run(["git", "-C", repo, "init", "-b", "main"], check=True, env=env)
-    for sha in (RELEASE_PARENT, RELEASE_COMMIT):
-        proc = subprocess.run(
-            [
-                "git",
-                "-C",
-                repo,
-                "fetch",
-                "--no-tags",
-                "--depth=1",
-                PUBLIC_REPO,
-                sha + ":refs/release-check/" + sha,
-            ],
-            check=False,
-            capture_output=True,
-            timeout=180,
-            env=env,
-        )
-        if proc.returncode != 0 or not release_diff.have_commit(repo, sha):
-            raise AssertionError("could not fetch the published 0.12.8 commits")
+    # Depth 2 keeps the merge commit's first parent. Depth 1 hides that
+    # parent, and `rev-parse <sha>^1` then fails even if the parent object
+    # was fetched separately.
+    proc = subprocess.run(
+        [
+            "git",
+            "-C",
+            repo,
+            "fetch",
+            "--no-tags",
+            "--depth=2",
+            PUBLIC_REPO,
+            RELEASE_COMMIT + ":refs/release-check/" + RELEASE_COMMIT,
+        ],
+        check=False,
+        capture_output=True,
+        timeout=180,
+        env=env,
+    )
+    if (
+        proc.returncode != 0
+        or not release_diff.have_commit(repo, RELEASE_COMMIT)
+        or not release_diff.have_commit(repo, RELEASE_PARENT)
+    ):
+        raise AssertionError("could not fetch the published 0.12.8 commits")
     return repo
 
 
