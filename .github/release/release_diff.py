@@ -150,6 +150,31 @@ def _evidence_blob_paths(text: str) -> set[str]:
     return paths
 
 
+def list_changed_paths(repo: str, base_sha: str, head_sha: str) -> list[tuple[str, str]]:
+    """Name-status pairs, including additions. Does not judge a release."""
+    if candidate._SHA.fullmatch(base_sha) is None or candidate._SHA.fullmatch(head_sha) is None:
+        raise ReleaseCheckError("diff SHA is not a commit SHA.")
+    raw = _git_ok(
+        repo,
+        [
+            "diff-tree",
+            "-z",
+            "-r",
+            "--no-commit-id",
+            "--name-status",
+            base_sha,
+            head_sha,
+        ],
+    )
+    changed = []
+    for status, paths in candidate.parse_name_status_z(raw):
+        for path in paths:
+            if not candidate.safe_rel_path(path):
+                raise ReleaseCheckError("refusing an unsafe path.")
+            changed.append((status, path))
+    return changed
+
+
 def load_tree_diff(repo: str, base_sha: str, head_sha: str) -> dict:
     """Tree diff of two commits. Both commits must already be local."""
     if candidate._SHA.fullmatch(base_sha) is None or candidate._SHA.fullmatch(head_sha) is None:

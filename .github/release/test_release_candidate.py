@@ -20,6 +20,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 import check_publish_commit as publish  # noqa: E402
+import check_release_candidate_gate as gate  # noqa: E402
 import check_release_pull_request as pull  # noqa: E402
 import release_candidate as candidate  # noqa: E402
 import release_diff  # noqa: E402
@@ -687,6 +688,91 @@ class GitEntryTests(unittest.TestCase):
             )
 
 
+class CandidateGateTests(unittest.TestCase):
+    def tearDown(self):
+        repo = getattr(self, "repo", None)
+        if repo:
+            shutil.rmtree(repo, ignore_errors=True)
+
+    def test_source_and_workflow_push_skips_environment(self):
+        self.repo = tempfile.mkdtemp(prefix="release-gate-")
+        _git(self.repo, "init", "-b", "main")
+        _commit_tree(
+            self.repo,
+            {
+                "package.json": PKG_BEFORE,
+                "src/index.ts": "export const value = 1;\n",
+                ".github/workflows/release.yml": "name: Release\n",
+            },
+        )
+        path = Path(self.repo) / "src" / "index.ts"
+        path.write_text("export const value = 2;\n", encoding="utf-8")
+        workflow = Path(self.repo) / ".github" / "workflows" / "ci.yml"
+        workflow.parent.mkdir(parents=True, exist_ok=True)
+        workflow.write_text("name: Package CI\n", encoding="utf-8")
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "commit", "-m", "infra")
+        self.assertEqual(gate.decide_release_candidate(self.repo, "1"), "skip")
+        self.assertEqual(gate.decide_release_candidate(self.repo, "2"), "skip")
+
+    def test_added_changeset_is_not_a_release_attempt(self):
+        self.repo = tempfile.mkdtemp(prefix="release-gate-")
+        _git(self.repo, "init", "-b", "main")
+        _commit_tree(self.repo, {"package.json": PKG_BEFORE, "src/index.ts": "export const value = 1;\n"})
+        added = Path(self.repo) / ".changeset" / "new-feature.md"
+        added.parent.mkdir(parents=True, exist_ok=True)
+        added.write_text(CHANGESET, encoding="utf-8")
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "commit", "-m", "feature")
+        self.assertEqual(gate.decide_release_candidate(self.repo, "1"), "skip")
+
+    def test_valid_version_merge_requests_publish(self):
+        self.repo, _base, _head = _init_release_repo(
+            {
+                "package.json": PKG_AFTER,
+                "CHANGELOG.md": CHANGELOG_AFTER,
+                ".changeset/sunny-day.md": None,
+                ECHO_PATH: ECHO_AFTER,
+            }
+        )
+        self.assertEqual(gate.decide_release_candidate(self.repo, "1"), "publish")
+
+    def test_invalid_candidate_and_rerun_fail_closed(self):
+        self.repo, _base, _head = _init_release_repo(
+            {
+                "package.json": PKG_AFTER,
+                "CHANGELOG.md": CHANGELOG_AFTER,
+                ".changeset/sunny-day.md": None,
+                ECHO_PATH: ECHO_AFTER,
+                "src/index.ts": "export const value = 2;\n",
+            }
+        )
+        with self.assertRaises(gate.ReleaseCheckError) as caught:
+            gate.decide_release_candidate(self.repo, "1")
+        self.assertIn("invalid release candidate", str(caught.exception))
+        shutil.rmtree(self.repo, ignore_errors=True)
+        self.repo, _base, _head = _init_release_repo(
+            {
+                "package.json": PKG_AFTER,
+                "CHANGELOG.md": CHANGELOG_AFTER,
+                ".changeset/sunny-day.md": None,
+                ECHO_PATH: ECHO_AFTER,
+            }
+        )
+        with self.assertRaises(gate.ReleaseCheckError) as caught:
+            gate.decide_release_candidate(self.repo, "2")
+        self.assertIn("run_attempt", str(caught.exception))
+        self.assertIn("does not revoke", str(caught.exception))
+
+    def test_gate_is_not_the_future_merge_checker(self):
+        source = (HERE / "check_release_candidate_gate.py").read_text(encoding="utf-8")
+        self.assertNotIn("evaluate_release_pr(", source)
+        self.assertNotIn("npm run release", source)
+        workflow = (ROOT / ".github/workflows/release.yml").read_text(encoding="utf-8")
+        self.assertIn("needs.release-candidate.outputs.decision == 'publish'", workflow)
+        self.assertIn("id-token: none", workflow)
+
+
 class PublishedCommitTests(unittest.TestCase):
     def tearDown(self):
         repo = getattr(self, "fetched", None)
@@ -703,6 +789,10 @@ class PublishedCommitTests(unittest.TestCase):
         self.assertEqual(result["previous_version"], "0.12.7")
         self.assertEqual(result["bump"], "patch")
         self.assertIn(".changeset/release-approval-gate.md", result["consumed_changesets"])
+        self.assertEqual(
+            gate.decide_release_candidate(repo, "1", RELEASE_COMMIT),
+            "publish",
+        )
 
 
 def _repo_with_release_commits() -> str:

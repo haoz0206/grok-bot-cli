@@ -57,10 +57,11 @@ Fix delivery receipts for server-hosted bots.
 | Job | 何时运行 | 是否等待批准 | 结果 |
 | --- | --- | --- | --- |
 | `version` | `main` 上还有待发布 Changeset | 否 | 创建或更新 `Release packages` PR。没有 `id-token`，也没有 `publish-script` |
-| `publish` | `main` 上没有待发布 Changeset | 是，GitHub Environment `npm-publish` | 批准后还要通过发布前校验，才执行 `npm run release`，并创建 GitHub Release |
+| `release-candidate` | 每次 `main` 上的 Release | 否 | 只读。纯版本候选输出 `publish`；普通提交输出 `skip`；像发布但不纯的提交失败 |
+| `publish` | `release-candidate` 的 decision 是 `publish` | 是，GitHub Environment `npm-publish` | 批准后还要通过发布前校验，才执行 `npm run release`，并创建 GitHub Release |
 | 两者之外 | 手动触发的 ref 不是 `main` | 否 | 工作流失败，不发布 |
 
-`publish` 在步骤开始前等待 Environment 批准。生成版本 PR 的 job 不使用该 Environment。
+`publish` 只有在候选 job 成功并且 decision 为 `publish` 时才会被调度。GitHub 不会为被跳过的 job 请求 Environment。普通源码、workflow 或基础设施提交停在 `skip`，不用拒绝部署。生成版本 PR 的 job 和候选 job 都不使用该 Environment。
 发布命令之前还有一道只读校验：`npm-publish` 必须有 required reviewer `haoz0206`（id `236642726`），`prevent_self_review` 为 false，并且部署分支恰好是 `main`。校验失败就不执行 `npm run release`。
 zstack 对发版 PR 的审查是仓库外的审核，不是 GitHub required reviewer。
 Environment 的 required reviewer 是 GitHub 用户 `haoz0206`。`prevent_self_review` 必须保持关闭，否则唯一批准人无法批准自己触发的部署。
@@ -77,8 +78,7 @@ Package CI 在 `changeset-release/main` 的未合并 PR 上运行 `check_release
 
 `version` job 仍把 `secrets.GITHUB_TOKEN` 交给 Changesets。按 [Triggering a workflow](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow)，用 `GITHUB_TOKEN` 打开或更新的 `pull_request` 会进入需要批准的运行，不会自动开始 CI。官方写明：改用 GitHub App installation token 或 PAT 才能让这种 PR 自动跑 workflow。本仓库不使用 PAT。专用 App 不在这次实现里，也不要把运维用的 `gh` OAuth 写进 workflow。
 
-当前 `main` 若没有待发布 Changeset，合并只改 workflow 的 PR 也会排队 `publish`。
-这种提交不是纯版本候选。批准之后，发布前校验会失败，不会执行 `npm publish`。不打算发布时，拒绝该部署。
+合并只改 workflow 或源码的提交时，`release-candidate` 输出 `skip`，`publish` 不启动，不会出现 `npm-publish` 批准。像发布但 diff 不纯的提交让候选 job 失败，workflow 失败，同样不请求 Environment。这和普通跳过不是同一种结果。批准之后的 tip 和 `run_attempt` 校验仍然执行；候选通过并不取消它们。读 tip 和 `npm publish` 之间仍可能有新 push，没有和 registry 绑在一起的原子锁。
 
 所以，点击 **Run workflow** 不一定立刻发布 npm。准备发版 PR 的运行可以成功，
 但那次运行不证明 npm 已有新版本。不要靠反复运行工作流来增加版本号。

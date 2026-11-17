@@ -83,8 +83,6 @@ jobs:
       contents: write
       pull-requests: write
       id-token: none
-    outputs:
-      has-changesets: ${{ steps.changesets.outputs.has-changesets }}
     steps:
       - name: Check out the repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
@@ -115,9 +113,32 @@ jobs:
           push-with-git-cli: true
           version-script: npm run release:version
 
+  release-candidate:
+    if: github.repository == 'haoz0206/grok-bot-cli' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: none
+    outputs:
+      decision: ${{ steps.gate.outputs.decision }}
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Classify the commit before npm-publish
+        id: gate
+        env:
+          PUBLISH_RUN_ATTEMPT: ${{ github.run_attempt }}
+        run: python3 .github/release/check_release_candidate_gate.py
+
   publish:
-    if: github.repository == 'haoz0206/grok-bot-cli' && github.ref == 'refs/heads/main' && needs.version.outputs.has-changesets == 'false'
-    needs: [platform, version]
+    if: github.repository == 'haoz0206/grok-bot-cli' && github.ref == 'refs/heads/main' && needs.release-candidate.outputs.decision == 'publish'
+    needs: [platform, version, release-candidate]
     runs-on: ubuntu-26.04
     environment: npm-publish
     timeout-minutes: 35

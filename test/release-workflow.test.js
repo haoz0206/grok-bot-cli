@@ -21,15 +21,24 @@ const job = (name) => {
 
 test("release publish is the only npm publish entry and waits on npm-publish", () => {
   const version = job("version");
+  const gate = job("release-candidate");
   const publish = job("publish");
   assert.match(release, /workflow_dispatch:\n/);
   assert.match(release, /branches: \[main\]/);
   assert.match(job("main-only"), /github\.ref != 'refs\/heads\/main'/);
   assert.match(job("platform"), /github\.ref == 'refs\/heads\/main'/);
   assert.match(version, /github\.ref == 'refs\/heads\/main'/);
+  assert.match(gate, /github\.ref == 'refs\/heads\/main'/);
   assert.match(publish, /github\.ref == 'refs\/heads\/main'/);
-  assert.match(publish, /needs\.version\.outputs\.has-changesets == 'false'/);
+  assert.match(publish, /needs\.release-candidate\.outputs\.decision == 'publish'/);
+  assert.doesNotMatch(publish.split("\n    steps:")[0], /has-changesets/);
   assert.match(publish, /environment: npm-publish\n/);
+  assert.doesNotMatch(gate, /environment:/);
+  assert.doesNotMatch(gate, /id-token: write/);
+  assert.match(gate, /id-token: none/);
+  assert.match(gate, /contents: read/);
+  assert.match(gate, /check_release_candidate_gate\.py/);
+  assert.doesNotMatch(gate, /npm run release|publish-script:|setup-node/);
   assert.doesNotMatch(version, /environment:/);
   assert.doesNotMatch(version, /publish-script:/);
   assert.match(version, /id-token: none/);
