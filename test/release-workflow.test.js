@@ -44,6 +44,9 @@ test("release publish is the only npm publish entry and waits on npm-publish", (
   assert.match(version, /id-token: none/);
   assert.match(version, /create-github-releases: false/);
   assert.match(version, /push-git-tags: false/);
+  assert.match(version, /name: Detect pending changesets/);
+  assert.match(version, /find \.changeset -maxdepth 1 -type f -name '\*\.md' ! -name README\.md/);
+  assert.match(version, /if: steps\.pending\.outputs\.pending == 'true'/);
   assert.match(publish, /actions: read\n/);
   assert.doesNotMatch(publish, /administration/);
   assert.match(publish, /id-token: write/);
@@ -65,6 +68,11 @@ test("release publish is the only npm publish entry and waits on npm-publish", (
 
 test("zstack wake is separate from release and cannot publish", () => {
   assert.match(notify, /on:\n {2}push:\n {4}branches:\n {6}- main\n/);
+  assert.match(
+    notify,
+    /paths-ignore:[\s\S]*- "\.changeset\/\*\*"[\s\S]*- "CHANGELOG\.md"[\s\S]*- "\.claude-plugin\/marketplace\.json"[\s\S]*- "artifact\/\*\*"/,
+  );
+  assert.doesNotMatch(notify, /paths-ignore:[\s\S]*- "package\.json"/);
   assert.equal(notify.match(/permissions: \{\}/g).length, 2);
   assert.doesNotMatch(notify, /workflow_dispatch|pull_request|changesets\/action|npm run release|environment:/);
   assert.match(notify, /grok-bot-cli-main-sync/);

@@ -1,6 +1,11 @@
 # main 分支的 zstack 唤醒
 
-`refs/heads/main` 每次推进时，`.github/workflows/zstack-main-push.yml` 向 Grok Bot webhook 发送一次 JSON。正文恰好是 `repository`、`ref`、`sha`。这个 workflow 不检出仓库，`permissions: {}`，也不调用 Changesets 或 `npm run release`。
+`refs/heads/main` 有源码或其他未被排除的文件推进时，`.github/workflows/zstack-main-push.yml` 向 Grok Bot webhook 发送一次 JSON。正文恰好是 `repository`、`ref`、`sha`。这个 workflow 不检出仓库，`permissions: {}`，也不调用 Changesets 或 `npm run release`。
+
+单独修改 Changeset 文件、已提交的 `artifact/`、`.claude-plugin/marketplace.json`
+或 `CHANGELOG.md` 不会唤醒 routine。`package.json` 会触发 routine，因为它包含依赖、
+脚本和包元数据。因此合并发版 PR 时，版本提交仍会发送一次同步唤醒。若同一次提交还
+包含其他文件，GitHub 的 `paths-ignore` 会继续触发 workflow。
 
 接收 routine 将由 zstack 创建为 `grok-bot-cli-main-sync`。不要把本仓库指到其他仓库的 routine。
 

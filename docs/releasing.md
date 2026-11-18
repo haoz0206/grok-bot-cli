@@ -61,7 +61,7 @@ Fix delivery receipts for server-hosted bots.
 | `publish` | `release-candidate` 的 decision 是 `publish` | 是，GitHub Environment `npm-publish` | 批准后还要通过发布前校验，才执行 `npm run release`，并创建 GitHub Release |
 | 两者之外 | 手动触发的 ref 不是 `main` | 否 | 工作流失败，不发布 |
 
-`publish` 只有在候选 job 成功并且 decision 为 `publish` 时才会被调度。GitHub 不会为被跳过的 job 请求 Environment。普通源码、workflow 或基础设施提交停在 `skip`，不用拒绝部署。生成版本 PR 的 job 和候选 job 都不使用该 Environment。
+`version` job 先检查 `.changeset/` 中是否存在待消费的 Markdown 文件。没有待发布 Changeset 时，它只完成检测并跳过依赖安装、完整检查和发版 PR 操作。`publish` 只有在候选 job 成功并且 decision 为 `publish` 时才会被调度。GitHub 不会为被跳过的 job 请求 Environment。普通源码、workflow 或基础设施提交停在 `skip`，不用拒绝部署。生成版本 PR 的 job 和候选 job 都不使用该 Environment。
 发布命令之前还有一道只读校验：`npm-publish` 必须有 required reviewer `haoz0206`（id `236642726`），`prevent_self_review` 为 false，并且部署分支恰好是 `main`。校验失败就不执行 `npm run release`。
 zstack 对发版 PR 的审查是仓库外的审核，不是 GitHub required reviewer。
 Environment 的 required reviewer 是 GitHub 用户 `haoz0206`。`prevent_self_review` 必须保持关闭，否则唯一批准人无法批准自己触发的部署。

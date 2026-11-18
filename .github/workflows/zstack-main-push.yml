@@ -1,6 +1,6 @@
 name: zstack main push wake
 
-# Wake zstack when refs/heads/main moves. Sender source and offline tests:
+# Sender source and offline tests:
 # .github/zstack/
 # Inlined so this job does not check out the repository.
 # This workflow does not version or publish packages.
@@ -9,6 +9,11 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - ".changeset/**"
+      - "CHANGELOG.md"
+      - ".claude-plugin/marketplace.json"
+      - "artifact/**"
 
 permissions: {}
 
@@ -27,7 +32,7 @@ jobs:
           ZSTACK_SHA: ${{ github.sha }}
         run: |
           set +x
-          set -euo pipefail
+          set -eu
           unset GITHUB_TOKEN GH_TOKEN || true
           unset http_proxy https_proxy HTTP_PROXY HTTPS_PROXY ALL_PROXY all_proxy no_proxy NO_PROXY || true
           python3 -I - <<'PY'
