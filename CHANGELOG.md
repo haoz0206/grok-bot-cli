@@ -1,5 +1,12 @@
 # grok-bot-cli
 
+## 0.12.9
+
+### Patch Changes
+
+- eda2de8: Report partially applied gateway mutations with the completed stages and created group ID, reject repeated Codex pagination cursors, keep npm bin entries valid for global installs, and exercise installer lifecycle coverage in platform CI.
+- eda2de8: Surface relay history-observation failures and ChatGPT Desktop app-server fallback diagnostics instead of leaving records or responses silently pending.
+
 ## 0.12.8
 
 ### Patch Changes
