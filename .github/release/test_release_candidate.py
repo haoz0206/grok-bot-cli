@@ -757,6 +757,26 @@ class CandidateGateTests(unittest.TestCase):
         _git(self.repo, "commit", "-m", "feature")
         self.assertEqual(gate.decide_release_candidate(self.repo, "1"), "skip")
 
+    def test_package_metadata_change_with_added_changeset_is_not_a_release_attempt(self):
+        self.repo = tempfile.mkdtemp(prefix="release-gate-")
+        _git(self.repo, "init", "-b", "main")
+        _commit_tree(self.repo, {"package.json": PKG_BEFORE, "src/index.ts": "export const value = 1;\n"})
+        package = Path(self.repo) / "package.json"
+        package.write_text(
+            PKG_BEFORE.replace(
+                '  "dependencies": {',
+                '  "bin": {\n    "gbot": "dist/bin/gbot.mjs"\n  },\n'
+                '  "dependencies": {',
+            ),
+            encoding="utf-8",
+        )
+        added = Path(self.repo) / ".changeset" / "new-feature.md"
+        added.parent.mkdir(parents=True, exist_ok=True)
+        added.write_text(CHANGESET, encoding="utf-8")
+        _git(self.repo, "add", "-A")
+        _git(self.repo, "commit", "-m", "package metadata")
+        self.assertEqual(gate.decide_release_candidate(self.repo, "1"), "skip")
+
     def test_valid_version_merge_requests_publish(self):
         self.repo, _base, _head = _init_release_repo(
             {

@@ -27,22 +27,64 @@ DECISION_PUBLISH = "publish"
 DECISION_SKIP = "skip"
 
 
-def is_release_surface(status: str, path: str) -> bool:
-    """True when this change is shaped like a release, not an ordinary push.
-
-    Adding a `.changeset/*.md` is how feature commits record a future
-    release. Deleting one is changeset consumption and is release-shaped.
-    """
+def is_release_surface(
+    status: str,
+    path: str,
+    *,
+    package_version_changed: bool = False,
+    version_echo_changed: bool = False,
+) -> bool:
+    """True when this change is shaped like a release, not an ordinary push."""
     # Manifest and compile-evidence hashes move when any tracked source file
     # changes. That snapshot update is not itself a release. They are still
     # checked strictly once a version, changelog, consumed changeset, or
     # version-echo file shows this commit is trying to publish.
-    if path in {"package.json", "CHANGELOG.md"}:
-        return True
-    if candidate.is_version_echo(path):
-        return True
+    if path in {"package.json", "CHANGELOG.md"} or candidate.is_version_echo(path):
+        return package_version_changed or version_echo_changed
     if status == "D" and path.startswith(".changeset/") and path.endswith(".md"):
         return path != ".changeset/README.md"
+    return False
+
+
+def package_version_change(
+    repo: str,
+    parent: str,
+    head: str,
+    changed: list[tuple[str, str]],
+) -> tuple[str | None, bool]:
+    before = candidate._json_object(
+        release_diff._text_blob(repo, parent, "package.json"),
+        "package.json",
+    )
+    version = before.get("version")
+    if ("M", "package.json") not in changed:
+        return version if isinstance(version, str) else None, False
+    after = candidate._json_object(
+        release_diff._text_blob(repo, head, "package.json"),
+        "package.json",
+    )
+    return (
+        version if isinstance(version, str) else None,
+        before.get("version") != after.get("version"),
+    )
+
+
+def version_echo_changed(
+    repo: str,
+    parent: str,
+    head: str,
+    changed: list[tuple[str, str]],
+    package_version: str | None,
+) -> bool:
+    if package_version is None:
+        return False
+    for status, path in changed:
+        if status != "M" or not candidate.is_version_echo(path):
+            continue
+        before = release_diff._text_blob(repo, parent, path)
+        after = release_diff._text_blob(repo, head, path)
+        if package_version in before and package_version not in after:
+            return True
     return False
 
 
@@ -61,7 +103,17 @@ def decide_release_candidate(repo: str, attempt: str = "1", commit: str | None =
     if candidate._SHA.fullmatch(parent) is None:
         raise ReleaseCheckError("release candidate first parent is not a SHA.")
     changed = release_diff.list_changed_paths(repo, parent, head)
-    if not any(is_release_surface(status, path) for status, path in changed):
+    package_version, version_changed = package_version_change(repo, parent, head, changed)
+    echo_changed = version_echo_changed(repo, parent, head, changed, package_version)
+    if not any(
+        is_release_surface(
+            status,
+            path,
+            package_version_changed=version_changed,
+            version_echo_changed=echo_changed,
+        )
+        for status, path in changed
+    ):
         return DECISION_SKIP
     try:
         diff = release_diff.load_tree_diff(repo, parent, head)
