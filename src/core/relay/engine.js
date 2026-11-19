@@ -320,7 +320,6 @@ export async function openRelayEngine({
     }
   }
   async function tick() {
-    lastError = null;
     try {
       // Reconnect/reconcile receipts before admitting new inbound deliveries.
       await reconcile();
@@ -356,6 +355,7 @@ export async function openRelayEngine({
         : "relay-error";
       throw error;
     }
+    lastError = null;
     return status();
   }
   function status({ bindingId, limit = 50 } = {}) {

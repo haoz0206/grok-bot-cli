@@ -97,6 +97,74 @@ test("add rejects a seventh member before any mutation", async (t) => {
   assert.ok(calls.every((call) => call.method === "listAgents"));
 });
 
+test("reports the created group when its profile update fails", async (t) => {
+  const calls = [];
+  const createdGroup = { id: "group-created", name: "New group", isGroup: true };
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    const method = new URL(url).pathname.split("/").pop();
+    const body = JSON.parse(options.body);
+    calls.push({ method, body });
+    if (method === "listAgents") {
+      return new Response(JSON.stringify({ agents: [...bots, createdGroup] }));
+    }
+    if (method === "createGroup") {
+      return new Response(JSON.stringify({ agent: createdGroup }));
+    }
+    if (method === "updateAgent") {
+      return new Response(JSON.stringify({ message: "profile route unavailable" }), { status: 503 });
+    }
+    return new Response("{}");
+  });
+
+  await assert.rejects(
+    createGroup(session, {
+      name: "New group",
+      memberIds: [bots[0].id],
+      title: "Launch",
+    }),
+    {
+      name: "GatewayError",
+      message: /Group "New group" \(group-created\) was created, but its profile update failed/,
+    },
+  );
+  assert.ok(calls.some((call) => call.method === "createGroup"));
+});
+
+test("does not call a successful profile update a failure when refresh fails", async (t) => {
+  let listCalls = 0;
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    const method = new URL(url).pathname.split("/").pop();
+    const body = JSON.parse(options.body);
+    if (method === "listAgents") {
+      listCalls += 1;
+      if (listCalls === 3) {
+        return new Response(JSON.stringify({ message: "roster temporarily unavailable" }), { status: 503 });
+      }
+      return new Response(JSON.stringify({
+        agents: listCalls === 1 ? bots : [...bots, { id: "group-created", name: "New group", isGroup: true }],
+      }));
+    }
+    if (method === "createGroup") {
+      return new Response(JSON.stringify({ agent: { id: "group-created", name: "New group", isGroup: true } }));
+    }
+    return new Response("{}");
+  });
+
+  await assert.rejects(
+    createGroup(session, {
+      name: "New group",
+      memberIds: [bots[0].id],
+      title: "Launch",
+    }),
+    (error) => {
+      assert.equal(error.name, "GatewayError");
+      assert.match(error.message, /listAgents failed: 503/);
+      assert.doesNotMatch(error.message, /profile update failed/);
+      return true;
+    },
+  );
+});
+
 test("remove rejects removing the last member before any mutation", async (t) => {
   const calls = mockGateway(t);
   await assert.rejects(removeGroupMember(session, group.id, bots[0].id), /at least one/);

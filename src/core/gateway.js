@@ -15,6 +15,8 @@ class GatewayError extends Error {
   }
 }
 
+const GATEWAY_MUTATION_STAGE = Symbol("gatewayMutationStage");
+
 // ponytail: fixed 30 s deadline and buffered byte cap; upgrade path is per-method budgets plus streaming reads.
 const GATEWAY_TIMEOUT_MS = 30000;
 export const GATEWAY_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
@@ -119,7 +121,7 @@ async function readJson(res) {
   try {
     return JSON.parse(text);
   } catch {
-    return { raw: text };
+    throw new GatewayError("Gateway returned invalid JSON.");
   }
 }
 
@@ -167,9 +169,7 @@ export async function connectGateway({ signal, appSessionOptions } = {}) {
   if (override) return override;
   const fromApp = sessionFromApp(appSessionOptions);
   if (fromApp) {
-    // Malformed account metadata disables reconnect, not the cached session.
-    let accountKey = null;
-    try { accountKey = grokBotActiveAccountKey(appSessionOptions); } catch { /* no safe reconnect identity */ }
+    const accountKey = grokBotActiveAccountKey(appSessionOptions);
     if (accountKey) reconnectStates.set(fromApp, { accountKey, appSessionOptions, generation: 0, pending: null });
     return fromApp;
   }
@@ -332,6 +332,23 @@ export async function createAgent(session, input) {
 
 export async function updateAgent(session, ref, patch = {}) {
   const rec = await resolveRef(session, ref);
+  const completed = [];
+  const apply = async (label, operation) => {
+    try {
+      await operation();
+      completed.push(label);
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      const failure = new GatewayError(
+        `Failed to ${label} for "${rec.name}" (${rec.id}).`
+          + (completed.length ? ` Completed: ${completed.join(", ")}.` : "")
+          + ` ${detail}`,
+        { status: error?.status, method: error?.method },
+      );
+      failure[GATEWAY_MUTATION_STAGE] = label;
+      throw failure;
+    }
+  };
   if (patch.name !== undefined && !String(patch.name).trim()) {
     throw new GatewayError("Name cannot be blank.");
   }
@@ -345,16 +362,28 @@ export async function updateAgent(session, ref, patch = {}) {
     if (patch.title !== undefined) profile.title = String(patch.title);
     if (patch.avatarShape !== undefined) profile.avatarShape = assertAvatar("shape", patch.avatarShape, AVATAR_SHAPES);
     if (patch.avatarColor !== undefined) profile.avatarColor = assertAvatar("color", patch.avatarColor, AVATAR_COLORS);
-    await gatewayCall(session, "updateAgent", { id: rec.id, profile });
+    await apply("update the profile", () => gatewayCall(session, "updateAgent", { id: rec.id, profile }));
   }
   if (patch.notifyOnAgentUpdates !== undefined) {
-    await gatewayCall(session, "setAgentNotifyOnUpdates", { id: rec.id, isEnabled: Boolean(patch.notifyOnAgentUpdates) });
+    await apply(
+      "update notification settings",
+      () => gatewayCall(session, "setAgentNotifyOnUpdates", { id: rec.id, isEnabled: Boolean(patch.notifyOnAgentUpdates) }),
+    );
   }
   if (patch.hiddenFromSidebar !== undefined) {
-    await gatewayCall(session, "setAgentHiddenFromSidebar", { id: rec.id, isHidden: Boolean(patch.hiddenFromSidebar) });
+    await apply(
+      "update sidebar visibility",
+      () => gatewayCall(session, "setAgentHiddenFromSidebar", { id: rec.id, isHidden: Boolean(patch.hiddenFromSidebar) }),
+    );
   }
   const fresh = (await listAgents(session)).find((r) => r.id === rec.id);
-  return fresh || rec;
+  if (fresh) return fresh;
+  const failure = new GatewayError(
+    `Updated "${rec.name}" (${rec.id}), but the roster refresh no longer contains it.`,
+    { method: "listAgents" },
+  );
+  failure[GATEWAY_MUTATION_STAGE] = "refresh the roster";
+  throw failure;
 }
 
 export async function deleteAgent(session, ref) {
@@ -464,7 +493,18 @@ export async function createGroup(session, input) {
   if (input.title) extras.title = input.title;
   if (input.avatarShape) extras.avatarShape = input.avatarShape;
   if (input.avatarColor) extras.avatarColor = input.avatarColor;
-  if (Object.keys(extras).length && rec?.id) return updateAgent(session, rec.id, extras);
+  if (Object.keys(extras).length && rec?.id) {
+    try {
+      return await updateAgent(session, rec.id, extras);
+    } catch (error) {
+      if (!error?.[GATEWAY_MUTATION_STAGE]) throw error;
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new GatewayError(
+        `Group "${rec.name}" (${rec.id}) was created, but its profile update failed. ${detail}`,
+        { status: error?.status, method: error?.method },
+      );
+    }
+  }
   return rec;
 }
 

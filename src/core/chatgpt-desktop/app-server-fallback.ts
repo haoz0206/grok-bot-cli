@@ -129,6 +129,7 @@ export async function appServerSearchThreads({
   const matched: ChatGptDesktopThread[] = [];
   let sourceCursor: string | undefined;
   let skip = 0;
+  const seen = new Set<string>();
   if (cursor) {
     const state = decodePageCursor<{ cursor: string | null; skip: number; query: string; project?: string; modelProviders: string[] }>(SEARCH_PAGE_PREFIX, cursor);
     if (state.query !== query || state.project !== project
@@ -166,6 +167,10 @@ export async function appServerSearchThreads({
       }
     }
     if (out.nextCursor == null) return { ...base, threads: matched, nextCursor: null };
+    if (typeof out.nextCursor !== 'string' || !out.nextCursor || seen.has(out.nextCursor)) {
+      throw new Error('ChatGPT Desktop search returned an invalid or repeated cursor');
+    }
+    seen.add(out.nextCursor);
     sourceCursor = out.nextCursor;
     skip = 0;
   }
@@ -232,7 +237,10 @@ async function readLocalThread(
   const { client } = await openCodexSession();
   try {
     const meta = await readThreadMetadata(client, bare);
-    const { turns, complete, nextCursor } = await listTurnsFull(client, bare, { limit, full, cursor, title: meta.title });
+    const { turns, complete, nextCursor, warnings } = await listTurnsFull(client, bare, { limit, full, cursor, title: meta.title });
+    if (!complete) {
+      warnings.push('Read page stopped before the end of the thread; continue with nextCursor to retrieve every turn and text fragment');
+    }
     return {
       threadId: toDesktopThreadId(bare),
       turns,
@@ -241,7 +249,7 @@ async function readLocalThread(
       full,
       complete,
       nextCursor,
-      ...(complete ? {} : { warnings: ['Read page stopped before the end of the thread; continue with nextCursor to retrieve every turn and text fragment'] }),
+      ...(warnings.length ? { warnings } : {}),
       ...(meta.title ? compactThreadTitle(meta.title) : {}),
       cwd: meta.cwd,
       status: meta.status,
@@ -257,16 +265,19 @@ export async function appServerStatusProbe(): Promise<{
   reachable: boolean;
   mode?: string;
   socketPath?: string;
+  message?: string;
 }> {
   const status = (await codexStatus()) as {
     reachable?: boolean;
     mode?: string;
     socketPath?: string;
+    message?: string;
   };
   return {
     reachable: Boolean(status.reachable && status.mode === 'daemon'),
     mode: typeof status.mode === 'string' ? status.mode : undefined,
     socketPath: typeof status.socketPath === 'string' ? status.socketPath : undefined,
+    message: typeof status.message === 'string' ? status.message : undefined,
   };
 }
 
@@ -354,7 +365,11 @@ async function readThreadMetadata(
     const read = await client.request('thread/read', { threadId }) as {
       thread?: Record<string, unknown>;
     };
-    const thread = read.thread && typeof read.thread === 'object' ? read.thread : {};
+    if (!read || typeof read !== 'object' || !read.thread || typeof read.thread !== 'object'
+      || read.thread.id !== threadId) {
+      throw new Error(`thread/read returned no matching thread for ${threadId}`);
+    }
+    const thread = read.thread;
     const statusObj = thread.status;
     const statusType =
       statusObj && typeof statusObj === 'object' && typeof (statusObj as { type?: unknown }).type === 'string'
@@ -383,7 +398,7 @@ async function listTurnsFull(
   client: AppServerClient,
   threadId: string,
   { limit, full, cursor, title }: { limit: number; full: boolean; cursor?: string; title?: string },
-): Promise<{ turns: ChatGptDesktopTurn[]; complete: boolean; nextCursor: string | null }> {
+): Promise<{ turns: ChatGptDesktopTurn[]; complete: boolean; nextCursor: string | null; warnings: string[] }> {
   type ReadCursor = { threadId: string; full: boolean; rpcCursor: string | null; skip: number; field?: 'text' | 'userText' | 'assistantText'; offset?: number };
   const state = cursor ? decodePageCursor<ReadCursor>(READ_PAGE_PREFIX, cursor) : null;
   if (state && (state.threadId !== threadId || state.full !== full || !Number.isSafeInteger(state.skip) || state.skip < 0
@@ -400,13 +415,14 @@ async function listTurnsFull(
   let method = 'thread/turns/list';
   const seen = new Set<string>();
   const turns: ChatGptDesktopTurn[] = [];
+  const warnings: string[] = [];
   const pageCursor = (source: string | undefined, index: number, field?: ReadCursor['field'], offset?: number) =>
     encodePageCursor(READ_PAGE_PREFIX, { threadId, full, rpcCursor: source ?? null, skip: index,
       ...(field ? { field, offset } : {}) });
   const fits = (candidate: ChatGptDesktopTurn) => serializedBytes({ threadId, turns: [...turns, candidate],
     backend: 'app-server', limit, full, complete: false, nextCursor: READ_PAGE_PREFIX,
     title: title ? compactThreadTitle(title).title : undefined,
-    warnings: ['Read page stopped before the end of the thread; continue with nextCursor to retrieve every turn and text fragment'],
+    warnings: [...warnings, 'Read page stopped before the end of the thread; continue with nextCursor to retrieve every turn and text fragment'],
     exitCode: 0 }) <= DESKTOP_RESULT_BUDGET_BYTES;
   while (turns.length < limit) {
     let result: { data?: unknown[]; nextCursor?: string | null };
@@ -422,10 +438,12 @@ async function listTurnsFull(
       const code = (error as { rpc?: { code?: number } })?.rpc?.code;
       if (turns.length === 0 && code === -32602 && itemsView) {
         itemsView = false;
+        warnings.push('App-server read fell back from itemsView=full; item details may be incomplete');
         continue;
       }
       if (turns.length === 0 && code === -32601 && method === 'thread/turns/list') {
         method = 'thread/items/list';
+        warnings.push('App-server read fell back from thread/turns/list to thread/items/list');
         continue;
       }
       throw maybeRemoteThreadError(error, threadId);
@@ -437,7 +455,7 @@ async function listTurnsFull(
       const turn = pageTurns[index];
       if (!fragmentField && turns.length && !fits(turn)) {
         return { turns: chronologicalPage(turns, full), complete: false,
-          nextCursor: pageCursor(rpcCursor, index) };
+          nextCursor: pageCursor(rpcCursor, index), warnings };
       }
       if (!fragmentField && fits(turn)) {
         turns.push(turn);
@@ -470,14 +488,14 @@ async function listTurnsFull(
             } while (size > 0);
             if (size === 0) {
               if (turns.length) return { turns: chronologicalPage(turns, full), complete: false,
-                nextCursor: pageCursor(rpcCursor, index, field, offset) };
+                nextCursor: pageCursor(rpcCursor, index, field, offset), warnings };
               throw new Error('Read fragment metadata exceeds the MCP result byte budget');
             }
             turns.push(fragment);
             offset += size;
             if (turns.length >= limit || offset < value.length && !fits({ ...fragment, text: 'x'.repeat(32_768) })) {
               return { turns: chronologicalPage(turns, full), complete: false,
-                nextCursor: pageCursor(rpcCursor, index, field, offset) };
+                nextCursor: pageCursor(rpcCursor, index, field, offset), warnings };
             }
           }
         }
@@ -487,10 +505,10 @@ async function listTurnsFull(
       if (turns.length >= limit) {
         const nextCursor = index + 1 < pageTurns.length ? pageCursor(rpcCursor, index + 1)
           : result.nextCursor ? pageCursor(result.nextCursor, 0) : null;
-        return { turns: chronologicalPage(turns, full), complete: nextCursor === null, nextCursor };
+        return { turns: chronologicalPage(turns, full), complete: nextCursor === null, nextCursor, warnings };
       }
     }
-    if (result.nextCursor == null) return { turns: chronologicalPage(turns, full), complete: true, nextCursor: null };
+    if (result.nextCursor == null) return { turns: chronologicalPage(turns, full), complete: true, nextCursor: null, warnings };
     if (typeof result.nextCursor !== 'string' || !result.nextCursor || seen.has(result.nextCursor)) {
       throw new Error(`${method} returned an invalid or repeated cursor`);
     }
@@ -498,7 +516,7 @@ async function listTurnsFull(
     rpcCursor = result.nextCursor;
     skip = 0;
   }
-  return { turns: chronologicalPage(turns, full), complete: false, nextCursor: pageCursor(rpcCursor, skip) };
+  return { turns: chronologicalPage(turns, full), complete: false, nextCursor: pageCursor(rpcCursor, skip), warnings };
 }
 
 function chronologicalPage(turns: ChatGptDesktopTurn[], full: boolean): ChatGptDesktopTurn[] {

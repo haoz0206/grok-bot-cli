@@ -1009,7 +1009,14 @@ export async function listCodexThreads({
     let nextCursor = null;
     let pageCursor = start.c;
     let skip = start.skip;
+    const seenPageCursors = new Set();
     for (;;) {
+      if (pageCursor !== undefined) {
+        if (seenPageCursors.has(pageCursor)) {
+          throw new CodexProtocolError("thread/list", "repeated pagination cursor");
+        }
+        seenPageCursors.add(pageCursor);
+      }
       let out = await fetchPage(pageCursor, true);
       checkPage(out);
       if (out.data.length === 0 && pageCursor === undefined && (out.nextCursor == null || out.nextCursor === "")) {
@@ -1034,6 +1041,9 @@ export async function listCodexThreads({
       const last = rows[rows.length - 1];
       const pastCutoff = cutoff !== undefined && sort === "updated" && order === "desc" && last !== undefined && (activityOf(last) ?? -Infinity) < cutoff;
       if (!more || pastCutoff) break;
+      if (seenPageCursors.has(more)) {
+        throw new CodexProtocolError("thread/list", "repeated pagination cursor");
+      }
       if (threads.length >= limit) { nextCursor = more; break; }
       pageCursor = more;
     }

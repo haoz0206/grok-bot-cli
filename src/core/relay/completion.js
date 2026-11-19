@@ -45,13 +45,9 @@ export function createCompletion({
         continue;
       }
       const first = group[0];
-      let result;
-      try {
-        result = await codex.wait(first, group);
-      } catch {
-        continue;
-      }
+      const result = await codex.wait(first, group);
       const execution = result.execution.state;
+      const turnError = errorDetail(result.execution.error);
       if (!["completed", "failed", "interrupted"].includes(execution)) {
         const mapped =
           execution === "waiting-for-input" ? "needs-input" : "pending";
@@ -68,11 +64,16 @@ export function createCompletion({
         continue;
       }
       if (
-        result.execution.error &&
-        /coverage|Invalid|anchor/.test(result.execution.error)
-      )
+        turnError &&
+        /coverage|Invalid|anchor/.test(turnError)
+      ) {
+        for (const r of group)
+          await update(r.id, {
+            execution: "pending",
+            reason: "reply-coverage-pending",
+          });
         continue;
-      const turnError = errorDetail(result.execution.error);
+      }
       const changes = [];
       let returnId = null;
       if (first.returnToGrok) {

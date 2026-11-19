@@ -303,13 +303,17 @@ export async function waitReplyOperation(
 
 export function resultText(result: OperationResult): string {
   if (result.error) return String(result.error);
+  const appServerMessage = result.appServerFallback && typeof result.appServerFallback === 'object'
+    && 'message' in result.appServerFallback && typeof result.appServerFallback.message === 'string'
+    ? ` app-server: ${result.appServerFallback.message}`
+    : '';
   if (result.reachable === true) {
     const backend = result.appServerFallback && typeof result.appServerFallback === 'object'
       ? ` cdp + app-server probe`
       : '';
-    return result.message ? String(result.message) : `ChatGPT Desktop CDP reachable on 127.0.0.1:${result.port}${backend}`;
+    return (result.message ? String(result.message) : `ChatGPT Desktop CDP reachable on 127.0.0.1:${result.port}${backend}`) + appServerMessage;
   }
-  if (result.reachable === false) return String(result.message ?? 'ChatGPT Desktop CDP unreachable');
+  if (result.reachable === false) return `${String(result.message ?? 'ChatGPT Desktop CDP unreachable')}${appServerMessage}`;
   if (Array.isArray(result.hosts)) {
     const providers = Array.isArray(result.modelProviders)
       ? ` providers=${result.modelProviders.length} (${String(result.modelProvidersSource ?? '')})`

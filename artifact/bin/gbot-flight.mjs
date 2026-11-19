@@ -11592,6 +11592,7 @@ var __webpack_modules__ = {
             const matched = [];
             let sourceCursor;
             let skip = 0;
+            const seen = new Set();
             if (cursor) {
                 const state = (0, _payload_budget_js__rspack_import_4.i3)(SEARCH_PAGE_PREFIX, cursor);
                 if (state.query !== query || state.project !== project || JSON.stringify(state.modelProviders) !== JSON.stringify(modelProviders) || !Number.isSafeInteger(state.skip) || state.skip < 0) {
@@ -11661,6 +11662,10 @@ var __webpack_modules__ = {
                     threads: matched,
                     nextCursor: null
                 };
+                if (typeof out.nextCursor !== 'string' || !out.nextCursor || seen.has(out.nextCursor)) {
+                    throw new Error('ChatGPT Desktop search returned an invalid or repeated cursor');
+                }
+                seen.add(out.nextCursor);
                 sourceCursor = out.nextCursor;
                 skip = 0;
             }
@@ -11719,12 +11724,15 @@ var __webpack_modules__ = {
             const { client } = await (0, _codex_bridge_js__rspack_import_0.eC)();
             try {
                 const meta = await readThreadMetadata(client, bare);
-                const { turns, complete, nextCursor } = await listTurnsFull(client, bare, {
+                const { turns, complete, nextCursor, warnings } = await listTurnsFull(client, bare, {
                     limit,
                     full,
                     cursor,
                     title: meta.title
                 });
+                if (!complete) {
+                    warnings.push('Read page stopped before the end of the thread; continue with nextCursor to retrieve every turn and text fragment');
+                }
                 return {
                     threadId: (0, _thread_ids_js__rspack_import_3.BS)(bare),
                     turns,
@@ -11733,11 +11741,9 @@ var __webpack_modules__ = {
                     full,
                     complete,
                     nextCursor,
-                    ...complete ? {} : {
-                        warnings: [
-                            'Read page stopped before the end of the thread; continue with nextCursor to retrieve every turn and text fragment'
-                        ]
-                    },
+                    ...warnings.length ? {
+                        warnings
+                    } : {},
                     ...meta.title ? (0, _payload_budget_js__rspack_import_4.aA)(meta.title) : {},
                     cwd: meta.cwd,
                     status: meta.status,
@@ -11753,7 +11759,8 @@ var __webpack_modules__ = {
             return {
                 reachable: Boolean(status.reachable && status.mode === 'daemon'),
                 mode: typeof status.mode === 'string' ? status.mode : undefined,
-                socketPath: typeof status.socketPath === 'string' ? status.socketPath : undefined
+                socketPath: typeof status.socketPath === 'string' ? status.socketPath : undefined,
+                message: typeof status.message === 'string' ? status.message : undefined
             };
         }
         function mapListedThread(thread) {
@@ -11806,7 +11813,10 @@ var __webpack_modules__ = {
                 const read = await client.request('thread/read', {
                     threadId
                 });
-                const thread = read.thread && typeof read.thread === 'object' ? read.thread : {};
+                if (!read || typeof read !== 'object' || !read.thread || typeof read.thread !== 'object' || read.thread.id !== threadId) {
+                    throw new Error(`thread/read returned no matching thread for ${threadId}`);
+                }
+                const thread = read.thread;
                 const statusObj = thread.status;
                 const statusType = statusObj && typeof statusObj === 'object' && typeof statusObj.type === 'string' ? String(statusObj.type) : typeof thread.status === 'string' ? thread.status : undefined;
                 return {
@@ -11837,6 +11847,7 @@ var __webpack_modules__ = {
             let method = 'thread/turns/list';
             const seen = new Set();
             const turns = [];
+            const warnings = [];
             const pageCursor = (source, index, field, offset)=>(0, _payload_budget_js__rspack_import_4.oI)(READ_PAGE_PREFIX, {
                     threadId,
                     full,
@@ -11860,6 +11871,7 @@ var __webpack_modules__ = {
                     nextCursor: READ_PAGE_PREFIX,
                     title: title ? (0, _payload_budget_js__rspack_import_4.aA)(title).title : undefined,
                     warnings: [
+                        ...warnings,
                         'Read page stopped before the end of the thread; continue with nextCursor to retrieve every turn and text fragment'
                     ],
                     exitCode: 0
@@ -11882,10 +11894,12 @@ var __webpack_modules__ = {
                     const code = error?.rpc?.code;
                     if (turns.length === 0 && code === -32602 && itemsView) {
                         itemsView = false;
+                        warnings.push('App-server read fell back from itemsView=full; item details may be incomplete');
                         continue;
                     }
                     if (turns.length === 0 && code === -32601 && method === 'thread/turns/list') {
                         method = 'thread/items/list';
+                        warnings.push('App-server read fell back from thread/turns/list to thread/items/list');
                         continue;
                     }
                     throw maybeRemoteThreadError(error, threadId);
@@ -11899,7 +11913,8 @@ var __webpack_modules__ = {
                         return {
                             turns: chronologicalPage(turns, full),
                             complete: false,
-                            nextCursor: pageCursor(rpcCursor, index)
+                            nextCursor: pageCursor(rpcCursor, index),
+                            warnings
                         };
                     }
                     if (!fragmentField && fits(turn)) {
@@ -11955,7 +11970,8 @@ var __webpack_modules__ = {
                                     if (turns.length) return {
                                         turns: chronologicalPage(turns, full),
                                         complete: false,
-                                        nextCursor: pageCursor(rpcCursor, index, field, offset)
+                                        nextCursor: pageCursor(rpcCursor, index, field, offset),
+                                        warnings
                                     };
                                     throw new Error('Read fragment metadata exceeds the MCP result byte budget');
                                 }
@@ -11968,7 +11984,8 @@ var __webpack_modules__ = {
                                     return {
                                         turns: chronologicalPage(turns, full),
                                         complete: false,
-                                        nextCursor: pageCursor(rpcCursor, index, field, offset)
+                                        nextCursor: pageCursor(rpcCursor, index, field, offset),
+                                        warnings
                                     };
                                 }
                             }
@@ -11981,14 +11998,16 @@ var __webpack_modules__ = {
                         return {
                             turns: chronologicalPage(turns, full),
                             complete: nextCursor === null,
-                            nextCursor
+                            nextCursor,
+                            warnings
                         };
                     }
                 }
                 if (result.nextCursor == null) return {
                     turns: chronologicalPage(turns, full),
                     complete: true,
-                    nextCursor: null
+                    nextCursor: null,
+                    warnings
                 };
                 if (typeof result.nextCursor !== 'string' || !result.nextCursor || seen.has(result.nextCursor)) {
                     throw new Error(`${method} returned an invalid or repeated cursor`);
@@ -12000,7 +12019,8 @@ var __webpack_modules__ = {
             return {
                 turns: chronologicalPage(turns, full),
                 complete: false,
-                nextCursor: pageCursor(rpcCursor, skip)
+                nextCursor: pageCursor(rpcCursor, skip),
+                warnings
             };
         }
         function chronologicalPage(turns, full) {
@@ -13390,7 +13410,9 @@ var __webpack_modules__ = {
             readThread: _app_server_fallback_js__rspack_import_2.Jf,
             unarchiveThread: _app_server_fallback_js__rspack_import_2.qL,
             statusProbe: _app_server_fallback_js__rspack_import_2.dM,
-            listRemoteThreads: _remote_threads_js__rspack_import_5.Hx,
+            listRemoteThreads: (env = process.env)=>(0, _remote_threads_js__rspack_import_5.Hx)(env, {
+                    strict: true
+                }),
             listHosts: _remote_threads_js__rspack_import_5.Kl
         };
         const MERGED_LIST_CURSOR = 'desktop-merged-list-v1:';
@@ -13563,7 +13585,7 @@ var __webpack_modules__ = {
                 } catch (error) {
                     warnings.push(`App-server list failed: ${error instanceof Error ? error.message : String(error)}`);
                 }
-                const remotes = this.#listRemotes();
+                const remotes = this.#listRemotes(warnings);
                 let cdpList = null;
                 try {
                     await this.#ensureCdp();
@@ -13771,7 +13793,7 @@ var __webpack_modules__ = {
                 const cdpList = await this.#tryCdpList({
                     limit: 200
                 });
-                const remotes = (0, _project_state_js__rspack_import_6.j)(this.#listRemotes());
+                const remotes = (0, _project_state_js__rspack_import_6.j)(this.#listRemotes(warnings));
                 if (!appSucceeded && !cdpList && !remotes.length) throw appError;
                 const appList = {
                     backend: 'app-server',
@@ -13898,9 +13920,10 @@ var __webpack_modules__ = {
                 let appServerFallback;
                 try {
                     appServerFallback = await this.#fallbacks.statusProbe();
-                } catch  {
+                } catch (error) {
                     appServerFallback = {
-                        reachable: false
+                        reachable: false,
+                        message: error instanceof Error ? error.message : String(error)
                     };
                 }
                 const reachable = cdpStatus.reachable;
@@ -13917,11 +13940,14 @@ var __webpack_modules__ = {
                 this.#cdpConnected = false;
                 await this.#cdp.close();
             }
-            #listRemotes() {
-                const list = this.#fallbacks.listRemoteThreads ?? _remote_threads_js__rspack_import_5.Hx;
+            #listRemotes(warnings) {
+                const list = this.#fallbacks.listRemoteThreads ?? ((env = process.env)=>(0, _remote_threads_js__rspack_import_5.Hx)(env, {
+                        strict: true
+                    }));
                 try {
                     return list();
-                } catch  {
+                } catch (error) {
+                    warnings.push(`Remote state list failed: ${error instanceof Error ? error.message : String(error)}`);
                     return [];
                 }
             }
@@ -14420,8 +14446,10 @@ var __webpack_modules__ = {
         var _codex_remote_control_js__rspack_import_0 = __webpack_require__("./src/core/codex/remote-control.js");
         var _thread_ids_js__rspack_import_1 = __webpack_require__("./src/core/chatgpt-desktop/thread-ids.ts");
         const REMOTE_SUMMARY_KEY = /^remote-thread-summaries-v3:(.+)$/;
-        function listRemoteThreadsFromState(env = process.env) {
-            const data = (0, _codex_remote_control_js__rspack_import_0.IT)(env);
+        function listRemoteThreadsFromState(env = process.env, { strict = false } = {}) {
+            const data = (0, _codex_remote_control_js__rspack_import_0.IT)(env, {
+                strict
+            });
             if (!data) return [];
             const hostNames = collectHostNames(data);
             const out = [];
@@ -15092,11 +15120,12 @@ var __webpack_modules__ = {
         }
         function resultText(result) {
             if (result.error) return String(result.error);
+            const appServerMessage = result.appServerFallback && typeof result.appServerFallback === 'object' && 'message' in result.appServerFallback && typeof result.appServerFallback.message === 'string' ? ` app-server: ${result.appServerFallback.message}` : '';
             if (result.reachable === true) {
                 const backend = result.appServerFallback && typeof result.appServerFallback === 'object' ? ` cdp + app-server probe` : '';
-                return result.message ? String(result.message) : `ChatGPT Desktop CDP reachable on 127.0.0.1:${result.port}${backend}`;
+                return (result.message ? String(result.message) : `ChatGPT Desktop CDP reachable on 127.0.0.1:${result.port}${backend}`) + appServerMessage;
             }
-            if (result.reachable === false) return String(result.message ?? 'ChatGPT Desktop CDP unreachable');
+            if (result.reachable === false) return `${String(result.message ?? 'ChatGPT Desktop CDP unreachable')}${appServerMessage}`;
             if (Array.isArray(result.hosts)) {
                 const providers = Array.isArray(result.modelProviders) ? ` providers=${result.modelProviders.length} (${String(result.modelProvidersSource ?? '')})` : '';
                 return `${result.hosts.length} hosts via ${String(result.hostsSource ?? result.backend ?? 'unknown')}${providers}`;
@@ -25895,12 +25924,8 @@ var __webpack_modules__ = {
             })) ?? (platform === "darwin" ? macAppBundleVersion(home) : null);
         }
         function hasGrokBotAppCredentials(options = {}) {
-            try {
-                const active = activeAppAccount(options)?.account;
-                return typeof active?.["cursor-access-token"] === "string" && Boolean(active["cursor-access-token"]);
-            } catch  {
-                return false;
-            }
+            const active = activeAppAccount(options)?.account;
+            return typeof active?.["cursor-access-token"] === "string" && Boolean(active["cursor-access-token"]);
         }
         function decryptAppSecret(encrypted, { platform, home, env, getKeychainPassword, unprotectData }) {
             if (platform === "win32") {
@@ -27340,7 +27365,14 @@ var __webpack_modules__ = {
                 let nextCursor = null;
                 let pageCursor = start.c;
                 let skip = start.skip;
+                const seenPageCursors = new Set();
                 for(;;){
+                    if (pageCursor !== undefined) {
+                        if (seenPageCursors.has(pageCursor)) {
+                            throw new CodexProtocolError("thread/list", "repeated pagination cursor");
+                        }
+                        seenPageCursors.add(pageCursor);
+                    }
                     let out = await fetchPage(pageCursor, true);
                     checkPage(out);
                     if (out.data.length === 0 && pageCursor === undefined && (out.nextCursor == null || out.nextCursor === "")) {
@@ -27372,6 +27404,9 @@ var __webpack_modules__ = {
                     const last = rows[rows.length - 1];
                     const pastCutoff = cutoff !== undefined && sort === "updated" && order === "desc" && last !== undefined && (activityOf(last) ?? -Infinity) < cutoff;
                     if (!more || pastCutoff) break;
+                    if (seenPageCursors.has(more)) {
+                        throw new CodexProtocolError("thread/list", "repeated pagination cursor");
+                    }
                     if (threads.length >= limit) {
                         nextCursor = more;
                         break;
@@ -28544,20 +28579,34 @@ var __webpack_modules__ = {
             const home = env.CODEX_HOME || (0, node_path__rspack_import_2.join)((0, node_os__rspack_import_1.homedir)(), '.codex');
             return (0, node_path__rspack_import_2.join)(home, '.codex-global-state.json');
         }
-        function loadCodexGlobalState(env = process.env) {
+        function loadCodexGlobalState(env = process.env, { strict = false } = {}) {
             let raw;
             try {
                 raw = (0, node_fs__rspack_import_0.readFileSync)(codexGlobalStatePath(env), 'utf8');
-            } catch  {
+            } catch (error) {
+                if (strict && error?.code !== 'ENOENT') {
+                    throw new Error(`Unable to read Codex global state: ${error instanceof Error ? error.message : String(error)}`, {
+                        cause: error
+                    });
+                }
                 return null;
             }
+            let data;
             try {
-                const data = JSON.parse(raw);
-                if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
-                return data;
-            } catch  {
+                data = JSON.parse(raw);
+            } catch (error) {
+                if (strict) {
+                    throw new Error('Codex global state contains invalid JSON.', {
+                        cause: error
+                    });
+                }
                 return null;
             }
+            if (!data || typeof data !== 'object' || Array.isArray(data)) {
+                if (strict) throw new Error('Codex global state has an invalid shape.');
+                return null;
+            }
+            return data;
         }
         function codexStateEntries(data) {
             const nested = data?.['electron-persisted-atom-state'];
@@ -29541,6 +29590,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                 this.method = method;
             }
         }
+        const GATEWAY_MUTATION_STAGE = Symbol("gatewayMutationStage");
         const GATEWAY_TIMEOUT_MS = 30000;
         const GATEWAY_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
         const READ_ONLY_METHODS = new Set([
@@ -29648,9 +29698,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             try {
                 return JSON.parse(text);
             } catch  {
-                return {
-                    raw: text
-                };
+                throw new GatewayError("Gateway returned invalid JSON.");
             }
         }
         function pick(obj, ...keys) {
@@ -29711,10 +29759,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             if (override) return override;
             const fromApp = sessionFromApp(appSessionOptions);
             if (fromApp) {
-                let accountKey = null;
-                try {
-                    accountKey = (0, _app_session_js__rspack_import_2.B3)(appSessionOptions);
-                } catch  {}
+                const accountKey = (0, _app_session_js__rspack_import_2.B3)(appSessionOptions);
                 if (accountKey) reconnectStates.set(fromApp, {
                     accountKey,
                     appSessionOptions,
@@ -29904,6 +29949,21 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
         }
         async function updateAgent(session, ref, patch = {}) {
             const rec = await resolveRef(session, ref);
+            const completed = [];
+            const apply = async (label, operation)=>{
+                try {
+                    await operation();
+                    completed.push(label);
+                } catch (error) {
+                    const detail = error instanceof Error ? error.message : String(error);
+                    const failure = new GatewayError(`Failed to ${label} for "${rec.name}" (${rec.id}).` + (completed.length ? ` Completed: ${completed.join(", ")}.` : "") + ` ${detail}`, {
+                        status: error?.status,
+                        method: error?.method
+                    });
+                    failure[GATEWAY_MUTATION_STAGE] = label;
+                    throw failure;
+                }
+            };
             if (patch.name !== undefined && !String(patch.name).trim()) {
                 throw new GatewayError("Name cannot be blank.");
             }
@@ -29916,25 +29976,30 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                 if (patch.title !== undefined) profile.title = String(patch.title);
                 if (patch.avatarShape !== undefined) profile.avatarShape = assertAvatar("shape", patch.avatarShape, _store_js__rspack_import_3.Jb);
                 if (patch.avatarColor !== undefined) profile.avatarColor = assertAvatar("color", patch.avatarColor, _store_js__rspack_import_3.T7);
-                await gatewayCall(session, "updateAgent", {
-                    id: rec.id,
-                    profile
-                });
+                await apply("update the profile", ()=>gatewayCall(session, "updateAgent", {
+                        id: rec.id,
+                        profile
+                    }));
             }
             if (patch.notifyOnAgentUpdates !== undefined) {
-                await gatewayCall(session, "setAgentNotifyOnUpdates", {
-                    id: rec.id,
-                    isEnabled: Boolean(patch.notifyOnAgentUpdates)
-                });
+                await apply("update notification settings", ()=>gatewayCall(session, "setAgentNotifyOnUpdates", {
+                        id: rec.id,
+                        isEnabled: Boolean(patch.notifyOnAgentUpdates)
+                    }));
             }
             if (patch.hiddenFromSidebar !== undefined) {
-                await gatewayCall(session, "setAgentHiddenFromSidebar", {
-                    id: rec.id,
-                    isHidden: Boolean(patch.hiddenFromSidebar)
-                });
+                await apply("update sidebar visibility", ()=>gatewayCall(session, "setAgentHiddenFromSidebar", {
+                        id: rec.id,
+                        isHidden: Boolean(patch.hiddenFromSidebar)
+                    }));
             }
             const fresh = (await listAgents(session)).find((r)=>r.id === rec.id);
-            return fresh || rec;
+            if (fresh) return fresh;
+            const failure = new GatewayError(`Updated "${rec.name}" (${rec.id}), but the roster refresh no longer contains it.`, {
+                method: "listAgents"
+            });
+            failure[GATEWAY_MUTATION_STAGE] = "refresh the roster";
+            throw failure;
         }
         async function deleteAgent(session, ref) {
             const rec = await resolveRef(session, ref);
@@ -30055,7 +30120,18 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             if (input.title) extras.title = input.title;
             if (input.avatarShape) extras.avatarShape = input.avatarShape;
             if (input.avatarColor) extras.avatarColor = input.avatarColor;
-            if (Object.keys(extras).length && rec?.id) return updateAgent(session, rec.id, extras);
+            if (Object.keys(extras).length && rec?.id) {
+                try {
+                    return await updateAgent(session, rec.id, extras);
+                } catch (error) {
+                    if (!error?.[GATEWAY_MUTATION_STAGE]) throw error;
+                    const detail = error instanceof Error ? error.message : String(error);
+                    throw new GatewayError(`Group "${rec.name}" (${rec.id}) was created, but its profile update failed. ${detail}`, {
+                        status: error?.status,
+                        method: error?.method
+                    });
+                }
+            }
             return rec;
         }
         async function setGroupMembers(session, groupRef, memberRefs) {

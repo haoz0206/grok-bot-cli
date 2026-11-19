@@ -58,20 +58,33 @@ export function codexGlobalStatePath(env = process.env) {
 }
 
 /** @returns {Record<string, unknown> | null} */
-export function loadCodexGlobalState(env = process.env) {
+export function loadCodexGlobalState(env = process.env, { strict = false } = {}) {
   let raw;
   try {
     raw = readFileSync(codexGlobalStatePath(env), 'utf8');
-  } catch {
+  } catch (error) {
+    if (strict && error?.code !== 'ENOENT') {
+      throw new Error(
+        `Unable to read Codex global state: ${error instanceof Error ? error.message : String(error)}`,
+        { cause: error },
+      );
+    }
     return null;
   }
+  let data;
   try {
-    const data = JSON.parse(raw);
-    if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
-    return data;
-  } catch {
+    data = JSON.parse(raw);
+  } catch (error) {
+    if (strict) {
+      throw new Error('Codex global state contains invalid JSON.', { cause: error });
+    }
     return null;
   }
+  if (!data || typeof data !== 'object' || Array.isArray(data)) {
+    if (strict) throw new Error('Codex global state has an invalid shape.');
+    return null;
+  }
+  return data;
 }
 
 /** Desktop keeps atom keys one level below the global state root. */

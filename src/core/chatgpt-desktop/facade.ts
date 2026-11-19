@@ -48,7 +48,7 @@ const defaultFallbacks: ChatGptDesktopFallbacks = {
   readThread: appServerReadThread,
   unarchiveThread: appServerUnarchiveThread,
   statusProbe: appServerStatusProbe,
-  listRemoteThreads: listRemoteThreadsFromState,
+  listRemoteThreads: (env = process.env) => listRemoteThreadsFromState(env, { strict: true }),
   listHosts: listDiscoveredHosts,
 };
 
@@ -232,7 +232,7 @@ export class ChatGptDesktopFacade implements ChatGptDesktopAdapter {
     } catch (error) {
       warnings.push(`App-server list failed: ${error instanceof Error ? error.message : String(error)}`);
     }
-    const remotes = this.#listRemotes();
+    const remotes = this.#listRemotes(warnings);
     let cdpList: ListThreadsResult | null = null;
     try {
       await this.#ensureCdp();
@@ -370,7 +370,7 @@ export class ChatGptDesktopFacade implements ChatGptDesktopAdapter {
       warnings.push(`App-server search failed: ${error instanceof Error ? error.message : String(error)}`);
     }
     const cdpList = await this.#tryCdpList({ limit: 200 });
-    const remotes = resolveThreadProjects(this.#listRemotes());
+    const remotes = resolveThreadProjects(this.#listRemotes(warnings));
     if (!appSucceeded && !cdpList && !remotes.length) throw appError;
     const appList: ListThreadsResult = { backend: 'app-server', limit: appRows.length, threads: appRows };
     const base = appSucceeded
@@ -476,8 +476,11 @@ export class ChatGptDesktopFacade implements ChatGptDesktopAdapter {
     let appServerFallback: ChatGptDesktopStatus['appServerFallback'];
     try {
       appServerFallback = await this.#fallbacks.statusProbe();
-    } catch {
-      appServerFallback = { reachable: false };
+    } catch (error) {
+      appServerFallback = {
+        reachable: false,
+        message: error instanceof Error ? error.message : String(error),
+      };
     }
     const reachable = cdpStatus.reachable;
     return {
@@ -497,11 +500,13 @@ export class ChatGptDesktopFacade implements ChatGptDesktopAdapter {
     await this.#cdp.close();
   }
 
-  #listRemotes() {
-    const list = this.#fallbacks.listRemoteThreads ?? listRemoteThreadsFromState;
+  #listRemotes(warnings: string[]) {
+    const list = this.#fallbacks.listRemoteThreads
+      ?? ((env = process.env) => listRemoteThreadsFromState(env, { strict: true }));
     try {
       return list();
-    } catch {
+    } catch (error) {
+      warnings.push(`Remote state list failed: ${error instanceof Error ? error.message : String(error)}`);
       return [];
     }
   }

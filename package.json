@@ -4,9 +4,9 @@
   "description": "Hao's fork of grok-bot-cli: CLI and Agent Bundle plugin for Grok Bot agents, groups, and messaging",
   "type": "module",
   "bin": {
-    "gbot": "./dist/bin/gbot.mjs",
-    "gbot-install": "./dist/bin/gbot-install.js",
-    "grok-bot": "./dist/bin/gbot.mjs"
+    "gbot": "dist/bin/gbot.mjs",
+    "gbot-install": "dist/bin/gbot-install.js",
+    "grok-bot": "dist/bin/gbot.mjs"
   },
   "engines": {
     "node": ">=22.19.0"

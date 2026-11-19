@@ -527,6 +527,65 @@ test("real socket disconnect after submission reconciles without replay", async 
   );
   assert.equal(f.sent.length, 1);
 });
+test("failed completion observation keeps relay status paused until a successful tick", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "relay-completion-error-"));
+  const env = { CODEX_HOME: "/tmp/test-codex" };
+  const session = {
+    client: {
+      closed: false,
+      onClose() { return () => {}; },
+      close() {},
+      async request() { return { data: [], nextCursor: null }; },
+    },
+  };
+  let fail = true;
+  const conversation = {
+    cwd: process.cwd(),
+    close() {},
+    async send() {
+      return { delivery: "accepted", threadId: "thread", turnId: "turn", messageId: "message" };
+    },
+    async wait() {
+      if (fail) throw new Error("history offline");
+      return {
+        execution: { state: "completed" },
+        reply: { text: "done", items: [], truncated: false },
+        interactions: [],
+      };
+    },
+  };
+  const { openRelayEngine } = await import("../src/core/relay/engine.js");
+  const engine = await openRelayEngine({
+    stateDir: dir,
+    profile: "completion-error",
+    env,
+    gateway: {
+      resolve: async (ref) => ({ id: ref, name: "Fixture" }),
+      tail: async () => ({ entries: [] }),
+      send: async () => ({ delivery: "accepted", messageId: "grok-message" }),
+    },
+    openSession: async () => session,
+    openConversation: async () => conversation,
+  });
+  t.after(async () => {
+    await engine.close();
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  await engine.sendToCodex({
+    grokTarget: "target",
+    codexThreadId: "thread",
+    message: "hello",
+  });
+  await assert.rejects(engine.tick(), /history offline/);
+  assert.equal(engine.status().state, "paused");
+  assert.equal(engine.status().reason, "relay-error");
+
+  fail = false;
+  await engine.tick();
+  assert.equal(engine.status().state, "running");
+  assert.equal(engine.status().reason, null);
+});
 test("multiple tracked routes isolate requestIds across originating threads", async (t) => {
   const f = await fixture(t);
   await f.engine.sendToGrok({

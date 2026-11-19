@@ -2,14 +2,15 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, rstest } from '@rstest/core';
+import * as bridge from '../../src/core/codex-bridge.js';
 import { findRemoteThreadHost } from '../../src/core/codex/remote-control.js';
 import { listDiscoveredHosts, listRemoteThreadsFromState } from '../../src/core/chatgpt-desktop/remote-threads.js';
 import { ChatGptDesktopFacade, finalizeThreadList } from '../../src/core/chatgpt-desktop/facade.js';
-import { appServerListThreads, appServerReadThread, appServerSearchThreads } from '../../src/core/chatgpt-desktop/app-server-fallback.js';
+import { appServerListThreads, appServerReadThread, appServerSearchThreads, appServerStatusProbe } from '../../src/core/chatgpt-desktop/app-server-fallback.js';
 import { DESKTOP_RESULT_BUDGET_BYTES, serializedBytes } from '../../src/core/chatgpt-desktop/payload-budget.js';
 import { findLocalProject, resolveThreadProjects } from '../../src/core/chatgpt-desktop/project-state.js';
 import { ARCHIVED_THREAD_EXPRESSION, CLEAR_NEW_CHAT_PROJECT_EXPRESSION, CONVERSATION_ID_EXPRESSION, LOADING_TASK_GONE_EXPRESSION, navigateToThreadExpression, openThreadInDom, readTurnsFromDom, startNewChatExpression, startNewChatInDom, waitForLoadingTaskGone } from '../../src/core/chatgpt-desktop/cdp-dom.js';
-import { listThreadsOperation, listThreadsSchema, readThreadOperation, readThreadSchema, searchThreadsSchema, statusOperation } from '../../src/core/chatgpt-desktop/routes.js';
+import { listThreadsOperation, listThreadsSchema, readThreadOperation, readThreadSchema, resultText, searchThreadsSchema, statusOperation } from '../../src/core/chatgpt-desktop/routes.js';
 import { CdpUnreachableError } from '../../src/core/chatgpt-desktop/errors.js';
 import { setChatGptDesktopAdapterForTests } from '../../src/core/chatgpt-desktop/facade.js';
 import type { ChatGptDesktopAdapter } from '../../src/core/chatgpt-desktop/adapter.js';
@@ -142,6 +143,17 @@ it('uses small app-server pages for search', async () => {
   expect(limits).toEqual([25, 25]);
 });
 
+it('rejects a repeated app-server search cursor instead of looping to the page cap', async () => {
+  const bridge = await import('../../src/core/codex-bridge.js');
+  const calls: Array<string | undefined> = [];
+  rstest.spyOn(bridge, 'listCodexThreads').mockImplementation(async ({ cursor } = {}) => {
+    calls.push(cursor);
+    return { limit: 25, threads: [], nextCursor: 'same' } as never;
+  });
+  await expect(appServerSearchThreads({ query: 'needle' })).rejects.toThrow(/invalid or repeated cursor/);
+  expect(calls).toEqual([undefined, 'same']);
+});
+
 it('pages full turn reads, extracts user content and completedAt, and keeps stable keys', async () => {
   const bridge = await import('../../src/core/codex-bridge.js');
   const limits: number[] = [];
@@ -164,6 +176,52 @@ it('pages full turn reads, extracts user content and completedAt, and keeps stab
     { turnKey: 'history-content:turn:second', userText: 'ask second', endedAt: 20 },
   ]);
   expect(limits).toEqual([10, 10]);
+});
+
+it('warns when app-server read drops the full item view', async () => {
+  const bridge = await import('../../src/core/codex-bridge.js');
+  rstest.spyOn(bridge, 'openCodexSession').mockResolvedValue({ client: {
+    close() {},
+    async request(method: string, params: Record<string, unknown>) {
+      if (method === 'thread/read') return { thread: { id: 'fallback-items-view' } };
+      if (params.itemsView === 'full') {
+        throw Object.assign(new Error('itemsView is unsupported'), { rpc: { code: -32602 } });
+      }
+      return { data: [{ id: 'turn-1', items: [] }], nextCursor: null };
+    },
+  } } as never);
+  const out = await appServerReadThread({ threadId: 'fallback-items-view' });
+  expect(out.warnings).toEqual(expect.arrayContaining([
+    'App-server read fell back from itemsView=full; item details may be incomplete',
+  ]));
+});
+
+it('warns when app-server read switches to the legacy items method', async () => {
+  const bridge = await import('../../src/core/codex-bridge.js');
+  rstest.spyOn(bridge, 'openCodexSession').mockResolvedValue({ client: {
+    close() {},
+    async request(method: string) {
+      if (method === 'thread/read') return { thread: { id: 'fallback-method' } };
+      if (method === 'thread/turns/list') {
+        throw Object.assign(new Error('method is unsupported'), { rpc: { code: -32601 } });
+      }
+      return { data: [{ id: 'turn-1', items: [] }], nextCursor: null };
+    },
+  } } as never);
+  const out = await appServerReadThread({ threadId: 'fallback-method' });
+  expect(out.warnings).toEqual(expect.arrayContaining([
+    'App-server read fell back from thread/turns/list to thread/items/list',
+  ]));
+});
+
+it('rejects a thread/read response for a different thread', async () => {
+  const bridge = await import('../../src/core/codex-bridge.js');
+  rstest.spyOn(bridge, 'openCodexSession').mockResolvedValue({ client: {
+    close() {},
+    async request() { return { thread: { id: 'other-thread' } }; },
+  } } as never);
+  await expect(appServerReadThread({ threadId: 'requested-thread' }))
+    .rejects.toThrow(/no matching thread/);
 });
 
 it('completes a 146-turn full read in bounded pages', async () => {
@@ -417,6 +475,55 @@ it('reports CDP unreachable even when app-server is reachable', async () => {
   expect(await facade.status()).toMatchObject({ reachable: false, exitCode: 1, appServerFallback: { reachable: true } });
   setChatGptDesktopAdapterForTests({ connect: async () => {}, close: async () => {}, status: async () => facade.status() } as unknown as ChatGptDesktopAdapter);
   expect(await statusOperation({})).toMatchObject({ reachable: false, exitCode: 1 });
+});
+
+it('preserves app-server probe diagnostics when the probe rejects', async () => {
+  const facade = new ChatGptDesktopFacade({
+    status: async () => ({
+      reachable: true,
+      host: '127.0.0.1',
+      port: 9333,
+      message: 'CDP up',
+      exitCode: 0,
+    }),
+  } as unknown as ChatGptDesktopAdapter, 9333, {
+    statusProbe: async () => { throw new Error('app-server probe failed'); },
+  } as never);
+
+  const status = await facade.status();
+  expect(status).toMatchObject({
+    reachable: true,
+    message: 'CDP up',
+    exitCode: 0,
+    appServerFallback: { reachable: false, message: 'app-server probe failed' },
+  });
+  setChatGptDesktopAdapterForTests({
+    connect: async () => {},
+    close: async () => {},
+    status: async () => facade.status(),
+  } as unknown as ChatGptDesktopAdapter);
+  const routed = await statusOperation({});
+  expect(routed).toMatchObject({
+    appServerFallback: { reachable: false, message: 'app-server probe failed' },
+  });
+  expect(resultText(routed)).toContain('app-server probe failed');
+});
+
+it('forwards the app-server status message for a normal unreachable result', async () => {
+  rstest.spyOn(bridge, 'codexStatus').mockResolvedValue({
+    reachable: false,
+    mode: 'socket-absent',
+    socketPath: '/tmp/missing.sock',
+    message: 'No app-server control socket',
+  } as never);
+
+  const status = await appServerStatusProbe();
+  expect(status).toMatchObject({
+    reachable: false,
+    mode: 'socket-absent',
+    socketPath: '/tmp/missing.sock',
+    message: 'No app-server control socket',
+  });
 });
 
 it('hovers then dispatches a real project button press and release', async () => {

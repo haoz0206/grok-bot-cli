@@ -103,6 +103,9 @@ jobs:
       - name: Exercise credential boundaries and doctor
         run: npm run test:platform
 
+      - name: Exercise installer lifecycle
+        run: node --test test/gbot-install.test.js
+
       - name: Typecheck and validate generated artifact
         run: |
           npm run typecheck

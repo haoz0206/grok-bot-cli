@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, expect, it, rstest } from '@rstest/core';
@@ -89,6 +89,33 @@ it('preserves partial app counts, remote providers and source warnings', async (
   expect(result.modelProviders).toEqual(['local-provider', 'remote-provider']);
   expect(result.warnings).toEqual(expect.arrayContaining(['source warning', 'App-server list failed: second page unavailable',
     'Provider discovery stopped before the final app-server page']));
+});
+
+it('surfaces remote-state failures instead of silently dropping remote threads', async () => {
+  const desktop = facade([], {
+    listThreads: async () => ({ backend: 'app-server', limit: 200, threads: [row('local')] }),
+    listRemoteThreads: () => { throw new Error('remote state unavailable'); },
+  });
+
+  const result = await desktop.listThreads();
+
+  expect(result.threads.map(thread => thread.threadId)).toEqual(['local:local']);
+  expect(result.warnings).toContain('Remote state list failed: remote state unavailable');
+});
+
+it('surfaces malformed remote-state files in the default inventory path', async () => {
+  writeFileSync(join(home, '.codex-global-state.json'), '{not-json');
+  const desktop = new ChatGptDesktopFacade(cdpFixture([]), 9222, {
+    listThreads: async () => ({ backend: 'app-server', limit: 200, threads: [row('local')] }),
+    searchThreads: unexpected,
+    readThread: unexpected,
+    statusProbe: async () => ({ reachable: true, mode: 'daemon' }),
+  } as never);
+
+  const result = await desktop.listThreads();
+
+  expect(result.threads.map(thread => thread.threadId)).toEqual(['local:local']);
+  expect(result.warnings).toContain('Remote state list failed: Codex global state contains invalid JSON.');
 });
 
 it('keeps earlier inventory pages when a later app-server RPC fails', async () => {

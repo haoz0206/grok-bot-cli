@@ -173,12 +173,8 @@ export function grokBotAppVersion({ home = homedir(), platform = process.platfor
 }
 
 export function hasGrokBotAppCredentials(options = {}) {
-  try {
-    const active = activeAppAccount(options)?.account;
-    return typeof active?.["cursor-access-token"] === "string" && Boolean(active["cursor-access-token"]);
-  } catch {
-    return false;
-  }
+  const active = activeAppAccount(options)?.account;
+  return typeof active?.["cursor-access-token"] === "string" && Boolean(active["cursor-access-token"]);
 }
 
 function decryptAppSecret(encrypted, { platform, home, env, getKeychainPassword, unprotectData }) {

@@ -98,6 +98,13 @@ test("cached desktop sessions send with selected account and team credentials", 
   assert.equal(calls.length, 3);
 });
 
+test("cached routes reject malformed active-account metadata", async (t) => {
+  const f = fixture(t);
+  writeFileSync(join(f.dir, "sand-secrets.json"), "{not-json");
+
+  await assert.rejects(connectGateway(f), /JSON|credential/i);
+});
+
 for (const change of ["switch", "sign-out", "cancel"]) {
   test(`desktop ${change} during resolution prevents backend submission`, async (t) => {
     const f = fixture(t);

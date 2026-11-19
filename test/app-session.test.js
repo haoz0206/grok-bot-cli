@@ -659,7 +659,7 @@ test("Windows: reconnect credentials need the Safe Storage key", () => {
 
 test("does not interpret unknown credential store versions", () => {
   const opts = writeActiveAccount("selected", 99);
-  assert.equal(hasGrokBotAppCredentials(opts), false);
+  assert.throws(() => hasGrokBotAppCredentials(opts), { code: "UNSUPPORTED_CREDENTIALS" });
   assert.throws(() => loadGrokBotAppCredentials(opts), { code: "UNSUPPORTED_CREDENTIALS" });
 });
 

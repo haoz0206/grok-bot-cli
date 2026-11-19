@@ -22108,12 +22108,8 @@ var __webpack_modules__ = {
             })) ?? (platform === "darwin" ? macAppBundleVersion(home) : null);
         }
         function hasGrokBotAppCredentials1(options = {}) {
-            try {
-                const active = activeAppAccount(options)?.account;
-                return typeof active?.["cursor-access-token"] === "string" && Boolean(active["cursor-access-token"]);
-            } catch  {
-                return false;
-            }
+            const active = activeAppAccount(options)?.account;
+            return typeof active?.["cursor-access-token"] === "string" && Boolean(active["cursor-access-token"]);
         }
         function decryptAppSecret(encrypted, { platform, home, env, getKeychainPassword, unprotectData }) {
             if (platform === "win32") {
@@ -23334,7 +23330,14 @@ var __webpack_modules__ = {
                 let nextCursor = null;
                 let pageCursor = start.c;
                 let skip = start.skip;
+                const seenPageCursors = new Set();
                 for(;;){
+                    if (pageCursor !== undefined) {
+                        if (seenPageCursors.has(pageCursor)) {
+                            throw new CodexProtocolError("thread/list", "repeated pagination cursor");
+                        }
+                        seenPageCursors.add(pageCursor);
+                    }
                     let out = await fetchPage(pageCursor, true);
                     checkPage(out);
                     if (out.data.length === 0 && pageCursor === undefined && (out.nextCursor == null || out.nextCursor === "")) {
@@ -23366,6 +23369,9 @@ var __webpack_modules__ = {
                     const last = rows[rows.length - 1];
                     const pastCutoff = cutoff !== undefined && sort === "updated" && order1 === "desc" && last !== undefined && (activityOf(last) ?? -Infinity) < cutoff;
                     if (!more || pastCutoff) break;
+                    if (seenPageCursors.has(more)) {
+                        throw new CodexProtocolError("thread/list", "repeated pagination cursor");
+                    }
                     if (threads.length >= limit) {
                         nextCursor = more;
                         break;
@@ -24532,20 +24538,34 @@ var __webpack_modules__ = {
             const home = env.CODEX_HOME || (0, node_path__rspack_import_2.join)((0, node_os__rspack_import_1.homedir)(), '.codex');
             return (0, node_path__rspack_import_2.join)(home, '.codex-global-state.json');
         }
-        function loadCodexGlobalState(env = process.env) {
+        function loadCodexGlobalState(env = process.env, { strict = false } = {}) {
             let raw;
             try {
                 raw = (0, node_fs__rspack_import_0.readFileSync)(codexGlobalStatePath(env), 'utf8');
-            } catch  {
+            } catch (error) {
+                if (strict && error?.code !== 'ENOENT') {
+                    throw new Error(`Unable to read Codex global state: ${error instanceof Error ? error.message : String(error)}`, {
+                        cause: error
+                    });
+                }
                 return null;
             }
+            let data;
             try {
-                const data = JSON.parse(raw);
-                if (!data || typeof data !== 'object' || Array.isArray(data)) return null;
-                return data;
-            } catch  {
+                data = JSON.parse(raw);
+            } catch (error) {
+                if (strict) {
+                    throw new Error('Codex global state contains invalid JSON.', {
+                        cause: error
+                    });
+                }
                 return null;
             }
+            if (!data || typeof data !== 'object' || Array.isArray(data)) {
+                if (strict) throw new Error('Codex global state has an invalid shape.');
+                return null;
+            }
+            return data;
         }
         function codexStateEntries(data) {
             const nested = data?.['electron-persisted-atom-state'];
@@ -25290,6 +25310,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                 this.method = method;
             }
         }
+        const GATEWAY_MUTATION_STAGE = Symbol("gatewayMutationStage");
         const GATEWAY_TIMEOUT_MS = 30000;
         const GATEWAY_MAX_RESPONSE_BYTES = 2 * 1024 * 1024;
         const READ_ONLY_METHODS = new Set([
@@ -25397,9 +25418,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             try {
                 return JSON.parse(text);
             } catch  {
-                return {
-                    raw: text
-                };
+                throw new GatewayError("Gateway returned invalid JSON.");
             }
         }
         function pick(obj, ...keys) {
@@ -25460,10 +25479,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             if (override) return override;
             const fromApp = sessionFromApp(appSessionOptions);
             if (fromApp) {
-                let accountKey = null;
-                try {
-                    accountKey = (0, _app_session_js__rspack_import_2.B3)(appSessionOptions);
-                } catch  {}
+                const accountKey = (0, _app_session_js__rspack_import_2.B3)(appSessionOptions);
                 if (accountKey) reconnectStates.set(fromApp, {
                     accountKey,
                     appSessionOptions,
@@ -25653,6 +25669,21 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
         }
         async function updateAgent(session, ref, patch = {}) {
             const rec = await resolveRef(session, ref);
+            const completed = [];
+            const apply = async (label, operation)=>{
+                try {
+                    await operation();
+                    completed.push(label);
+                } catch (error) {
+                    const detail = error instanceof Error ? error.message : String(error);
+                    const failure = new GatewayError(`Failed to ${label} for "${rec.name}" (${rec.id}).` + (completed.length ? ` Completed: ${completed.join(", ")}.` : "") + ` ${detail}`, {
+                        status: error?.status,
+                        method: error?.method
+                    });
+                    failure[GATEWAY_MUTATION_STAGE] = label;
+                    throw failure;
+                }
+            };
             if (patch.name !== undefined && !String(patch.name).trim()) {
                 throw new GatewayError("Name cannot be blank.");
             }
@@ -25665,25 +25696,30 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                 if (patch.title !== undefined) profile.title = String(patch.title);
                 if (patch.avatarShape !== undefined) profile.avatarShape = assertAvatar("shape", patch.avatarShape, AVATAR_SHAPES);
                 if (patch.avatarColor !== undefined) profile.avatarColor = assertAvatar("color", patch.avatarColor, AVATAR_COLORS);
-                await gatewayCall(session, "updateAgent", {
-                    id: rec.id,
-                    profile
-                });
+                await apply("update the profile", ()=>gatewayCall(session, "updateAgent", {
+                        id: rec.id,
+                        profile
+                    }));
             }
             if (patch.notifyOnAgentUpdates !== undefined) {
-                await gatewayCall(session, "setAgentNotifyOnUpdates", {
-                    id: rec.id,
-                    isEnabled: Boolean(patch.notifyOnAgentUpdates)
-                });
+                await apply("update notification settings", ()=>gatewayCall(session, "setAgentNotifyOnUpdates", {
+                        id: rec.id,
+                        isEnabled: Boolean(patch.notifyOnAgentUpdates)
+                    }));
             }
             if (patch.hiddenFromSidebar !== undefined) {
-                await gatewayCall(session, "setAgentHiddenFromSidebar", {
-                    id: rec.id,
-                    isHidden: Boolean(patch.hiddenFromSidebar)
-                });
+                await apply("update sidebar visibility", ()=>gatewayCall(session, "setAgentHiddenFromSidebar", {
+                        id: rec.id,
+                        isHidden: Boolean(patch.hiddenFromSidebar)
+                    }));
             }
             const fresh = (await listAgents(session)).find((r)=>r.id === rec.id);
-            return fresh || rec;
+            if (fresh) return fresh;
+            const failure = new GatewayError(`Updated "${rec.name}" (${rec.id}), but the roster refresh no longer contains it.`, {
+                method: "listAgents"
+            });
+            failure[GATEWAY_MUTATION_STAGE] = "refresh the roster";
+            throw failure;
         }
         async function deleteAgent(session, ref) {
             const rec = await resolveRef(session, ref);
@@ -25804,7 +25840,18 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             if (input.title) extras.title = input.title;
             if (input.avatarShape) extras.avatarShape = input.avatarShape;
             if (input.avatarColor) extras.avatarColor = input.avatarColor;
-            if (Object.keys(extras).length && rec?.id) return updateAgent(session, rec.id, extras);
+            if (Object.keys(extras).length && rec?.id) {
+                try {
+                    return await updateAgent(session, rec.id, extras);
+                } catch (error) {
+                    if (!error?.[GATEWAY_MUTATION_STAGE]) throw error;
+                    const detail = error instanceof Error ? error.message : String(error);
+                    throw new GatewayError(`Group "${rec.name}" (${rec.id}) was created, but its profile update failed. ${detail}`, {
+                        status: error?.status,
+                        method: error?.method
+                    });
+                }
+            }
             return rec;
         }
         async function setGroupMembers(session, groupRef, memberRefs) {
@@ -26409,13 +26456,9 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                         continue;
                     }
                     const first = group[0];
-                    let result;
-                    try {
-                        result = await codex.wait(first, group);
-                    } catch  {
-                        continue;
-                    }
+                    const result = await codex.wait(first, group);
                     const execution = result.execution.state;
+                    const turnError = (0, _detail_js__rspack_import_2.m)(result.execution.error);
                     if (![
                         "completed",
                         "failed",
@@ -26428,8 +26471,13 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                         });
                         continue;
                     }
-                    if (result.execution.error && /coverage|Invalid|anchor/.test(result.execution.error)) continue;
-                    const turnError = (0, _detail_js__rspack_import_2.m)(result.execution.error);
+                    if (turnError && /coverage|Invalid|anchor/.test(turnError)) {
+                        for (const r of group)await update(r.id, {
+                            execution: "pending",
+                            reason: "reply-coverage-pending"
+                        });
+                        continue;
+                    }
                     const changes = [];
                     let returnId = null;
                     if (first.returnToGrok) {
@@ -26840,7 +26888,6 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                 }
             }
             async function tick() {
-                lastError = null;
                 try {
                     await reconcile();
                     await completions();
@@ -26855,6 +26902,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
                     lastError = /capacity|budget/i.test(error.message) ? "capacity" : "relay-error";
                     throw error;
                 }
+                lastError = null;
                 return status();
             }
             function status({ bindingId, limit = 50 } = {}) {

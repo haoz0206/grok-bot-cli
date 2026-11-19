@@ -40,8 +40,9 @@ export type RemoteThreadLookup = {
  */
 export function listRemoteThreadsFromState(
   env: NodeJS.ProcessEnv = process.env,
+  { strict = false }: { strict?: boolean } = {},
 ): RemoteThreadRecord[] {
-  const data = loadCodexGlobalState(env);
+  const data = loadCodexGlobalState(env, { strict });
   if (!data) return [];
   const hostNames = collectHostNames(data);
   const out: RemoteThreadRecord[] = [];

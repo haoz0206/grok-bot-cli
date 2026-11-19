@@ -92,6 +92,7 @@ export type ChatGptDesktopStatus = {
     readonly reachable: boolean;
     readonly mode?: string;
     readonly socketPath?: string;
+    readonly message?: string;
   };
   readonly message: string;
   readonly exitCode: 0 | 1;
