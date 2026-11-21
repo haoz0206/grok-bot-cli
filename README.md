@@ -4,8 +4,9 @@
 
 Maintained fork of [ScriptedAlchemy/grok-bot-cli](https://github.com/ScriptedAlchemy/grok-bot-cli), distributed from [haoz0206/grok-bot-cli](https://github.com/haoz0206/grok-bot-cli). The upstream authors and MIT license are retained.
 
-This fork periodically incorporates upstream updates and maintains its own features
-and fixes. It has an independent npm release history. See [Maintain this fork](#maintain-this-fork)
+This fork is maintained as its own application, published only under the `@haoz0206`
+npm scope with an independent release history. Its changes are not submitted upstream;
+upstream is a source of reviewed updates that this fork pulls in. See [Maintain this fork](#maintain-this-fork)
 for repository roles and the upstream sync process.
 
 Manage [Grok Bot](https://cursor.com/help/grok-bot/plans) agents, groups, and messages from your terminal.
@@ -473,6 +474,8 @@ Resolve conflicts while preserving the fork's behavior and identity:
   that it covers the fork's behavior before removing the duplicate implementation.
 - Keep the existing CLI commands, `gbot` plugin identity, and data paths unless a
   deliberate migration changes them. Preserve upstream attribution and the MIT license.
+- Keep `.gitattributes` and the `scripts/agent-bundle.mjs` entry in the agent-bundle
+  npm scripts. They make a Windows build of `artifact/` byte-identical to a POSIX build.
 
 After resolving source and dependency changes, run `npm ci` and `npm run check`.
 The check rebuilds `artifact/`; commit the regenerated bundle and marketplace files
@@ -487,9 +490,9 @@ focused commit, verify the affected behavior, and add a Changeset for the scoped
 Run `npm run check` before merging. Keep upstream syncs separate from new fork work
 so later syncs can identify which behavior must be preserved.
 
-Submit generally useful fixes upstream when appropriate. A fix can ship in this fork
-before upstream accepts it. Periodic syncs are reviewed maintenance work, not an
-automatic replacement of this fork with upstream `main`.
+Fork changes ship only in this fork. Do not open pull requests or issues against
+upstream for them. Periodic syncs are reviewed maintenance work, not an automatic
+replacement of this fork with upstream `main`.
 
 ## Release this fork
 

@@ -4,6 +4,9 @@ This is the maintained fork `haoz0206/grok-bot-cli`, published as
 `@haoz0206/grok-bot-cli`. The original upstream is `ScriptedAlchemy/grok-bot-cli`
 at https://github.com/ScriptedAlchemy/grok-bot-cli. Both use `main`.
 Use `origin` for this fork and `upstream` for the original repository.
+This fork is maintained as its own application and published only under the
+`@haoz0206` scope. Do not open pull requests or issues upstream for fork changes;
+upstream is only a source to pull reviewed updates from.
 Periodically sync upstream while maintaining fork-specific features and fixes.
 Follow README.md's "Maintain this fork" section. Preserve the scoped package,
 fork repository links, release ownership, and existing behavior during syncs.

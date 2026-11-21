@@ -16,11 +16,11 @@
     "registry": "https://registry.npmjs.org/"
   },
   "scripts": {
-    "build": "agent-bundle build",
+    "build": "node scripts/agent-bundle.mjs build",
     "changeset": "changeset",
     "check": "npm run validate && npm run build && npm run validate:artifact && npm run typecheck && npm test",
     "gbot": "node dist/bin/gbot.mjs",
-    "prepack": "agent-bundle prepack",
+    "prepack": "node scripts/agent-bundle.mjs prepack",
     "release": "changeset publish",
     "release:version": "changeset version && npm run build && npm run validate:artifact",
     "test": "npm run test:unit && npm run test:routes",
@@ -28,8 +28,8 @@
     "test:routes": "rstest --config rstest.route-unit.config.ts",
     "test:unit": "node scripts/run-unit-tests.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "validate": "agent-bundle validate",
-    "validate:artifact": "agent-bundle validate --artifact artifact"
+    "validate": "node scripts/agent-bundle.mjs validate",
+    "validate:artifact": "node scripts/agent-bundle.mjs validate --artifact artifact"
   },
   "repository": {
     "type": "git",
