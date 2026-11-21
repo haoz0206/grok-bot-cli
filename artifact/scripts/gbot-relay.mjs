@@ -26179,8 +26179,12 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
             const mapped = normalizeHeaderMap(body.gatewayHeaders || body.gateway_headers);
             if (Object.keys(mapped).length) return mapped;
             const token = body.anyrunNetworkToken || body.anyrun_network_token || body.networkToken;
-            return token ? {
+            if (token) return {
                 "x-anyrun-network-token": String(token)
+            };
+            const portToken = body.gatewayPortToken || body.gateway_port_token;
+            return portToken ? {
+                "x-anyrun-port-token": String(portToken)
             } : {};
         }
         function headersFromEnv() {
