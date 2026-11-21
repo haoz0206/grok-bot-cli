@@ -181,8 +181,8 @@ npm install --global "@haoz0206/grok-bot-cli@$release_version" --registry=https:
 
 ## 处理等待和失败
 
-- **npm 暂时返回 404。** 发布处理可能延迟。现有工作流最多等待约 20 分钟查询目标版本。
-  等待期间报告“发布仍待 registry 确认”，不要提前宣布成功或重复发布。
+- **npm 暂时返回 404。** npm 对发布的 PUT 返回 202，表示已接收、后台处理完才可见。这一步通常 3–6 分钟，0.12.10 用了约 55 分钟。工作流最多等待约 60 分钟查询目标版本。
+  等待期间报告“发布仍待 registry 确认”，不要提前宣布成功或重复发布。超时后先看失败日志里有没有 `http fetch PUT 202`：有，就说明 npm 已接收，稍后再用 `npm view` 核对；不要重跑 publish。
 - **已有 Release 正在运行。** 跟踪原运行。相同分支的新运行会取消旧运行，避免重复点击。取消不是和 npm 发布绑在一起的锁。
 - **不要重跑 publish 来补发。** [Re-running workflows and jobs](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs) 写明重跑沿用最初那次的 `GITHUB_SHA` 和 `GITHUB_REF`，重跑失败 job 时依赖它的 job 也会重跑。`github.run_attempt` 从 1 开始，每次重跑加 1。批准记录和 pending deployments 的 REST 路径都挂在 workflow run id 上，没有 attempt 参数。重跑文档没有写会再次弹出 required reviewer，也没有让本仓库 workflow 撤销已有批准的接口。因此 `run_attempt` 不是 `1` 时 `publish` 失败。补救是新的 workflow run（新的 run id，attempt 为 1）：新的 `main` push，或由人在当前 `main` 上重新 Run workflow。不要自动 dispatch。代价是发布失败后不能用 Re-run failed jobs 接着发布，必须重新准备一次运行并再次批准。已经发布过的同一提交如果再次进入 `publish`，版本校验仍可能通过，随后由 npm 拒绝覆盖已有版本；不打算再发布时不要批准。
 - **工作流失败。** 查看对应运行的失败步骤和日志，区分构建、权限、发布和 registry 验证失败。
