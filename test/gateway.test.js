@@ -25,6 +25,15 @@ test("reads EnsureSandBox token field", () => {
   assert.equal(headers["x-anyrun-network-token"], "field-token");
 });
 
+test("routes port-routed boxes with the gateway port token", () => {
+  assert.deepEqual(headersFromEnsureSandbox({ networkToken: "", gatewayPortToken: "port" }), {
+    "x-anyrun-port-token": "port",
+  });
+  assert.deepEqual(headersFromEnsureSandbox({ networkToken: "net", gatewayPortToken: "port" }), {
+    "x-anyrun-network-token": "net",
+  });
+});
+
 test("env headers override EnsureSandBox", () => {
   const headers = mergeGatewayHeaders(
     { "x-anyrun-network-token": "ensure" },
