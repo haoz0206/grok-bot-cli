@@ -473,6 +473,8 @@ Resolve conflicts while preserving the fork's behavior and identity:
   that it covers the fork's behavior before removing the duplicate implementation.
 - Keep the existing CLI commands, `gbot` plugin identity, and data paths unless a
   deliberate migration changes them. Preserve upstream attribution and the MIT license.
+- Keep `.gitattributes` and the `scripts/agent-bundle.mjs` entry in the agent-bundle
+  npm scripts. They make a Windows build of `artifact/` byte-identical to a POSIX build.
 
 After resolving source and dependency changes, run `npm ci` and `npm run check`.
 The check rebuilds `artifact/`; commit the regenerated bundle and marketplace files
