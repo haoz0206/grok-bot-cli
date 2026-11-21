@@ -60643,7 +60643,7 @@ var __webpack_modules__ = {
         const route19 = Object.assign({}, Reflect.get(_src_mcp_grok_bot_tools_gbot_grok_respond_tsx__rspack_import_22, 'default'), _src_mcp_grok_bot_tools_gbot_grok_respond_tsx__rspack_import_22);
         const route20 = Object.assign({}, Reflect.get(_src_mcp_grok_bot_tools_gbot_send_tsx__rspack_import_23, 'default'), _src_mcp_grok_bot_tools_gbot_send_tsx__rspack_import_23);
         const route21 = Object.assign({}, Reflect.get(_src_mcp_grok_bot_tools_gbot_thread_tsx__rspack_import_24, 'default'), _src_mcp_grok_bot_tools_gbot_thread_tsx__rspack_import_24);
-        const ARTIFACT_EPOCH = "gbot@0.12.10";
+        const ARTIFACT_EPOCH = "gbot@0.12.11";
         const pluginRoot = (0, _agent_bundle_runtime__rspack_import_25.E7)({
             fallback: (0, node_url__rspack_import_0.fileURLToPath)(new URL('..', import.meta.url)),
             stateAnchor: 'user-data'
@@ -61665,7 +61665,7 @@ var __webpack_modules__ = {
                 lineage: lineage.registry,
                 plugin: {
                     "name": "gbot",
-                    "version": "0.12.10"
+                    "version": "0.12.11"
                 },
                 pluginRoot: pluginRoot.identity,
                 routes
@@ -67196,7 +67196,7 @@ ts() { date -u +%Y-%m-%dT%H:%M:%SZ; }
     },
     "./package.json" (module) {
         module.exports = {
-            "rE": "0.12.10"
+            "rE": "0.12.11"
         };
     }
 };
