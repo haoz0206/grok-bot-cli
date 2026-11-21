@@ -24,7 +24,10 @@ export function headersFromEnsureSandbox(body) {
   const mapped = normalizeHeaderMap(body.gatewayHeaders || body.gateway_headers);
   if (Object.keys(mapped).length) return mapped;
   const token = body.anyrunNetworkToken || body.anyrun_network_token || body.networkToken;
-  return token ? { "x-anyrun-network-token": String(token) } : {};
+  if (token) return { "x-anyrun-network-token": String(token) };
+  // Port-routed boxes leave networkToken empty; the desktop app then routes with this header.
+  const portToken = body.gatewayPortToken || body.gateway_port_token;
+  return portToken ? { "x-anyrun-port-token": String(portToken) } : {};
 }
 
 export function headersFromEnv() {

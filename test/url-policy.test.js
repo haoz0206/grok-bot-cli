@@ -123,7 +123,7 @@ test("test mode allows only loopback, for gateway and backend, and ignores escap
 
 test("redacts bearer, basic, cookie, and token-like fields", () => {
   const out = redactSecrets(
-    'EnsureSandBox failed: 401 {"gatewayToken":"supersecret","x-anyrun-network-token":"route"} ' +
+    'EnsureSandBox failed: 401 {"gatewayToken":"supersecret","x-anyrun-network-token":"route","gatewayPortToken":"portsecret","x-anyrun-port-token":"portheader"} ' +
       "Bearer abc.def-ghi+= authorization: Basic YWJjMTIz Cookie: sid=keepsecret Set-Cookie: a=b",
   );
   assert.match(out, /Bearer <redacted>/);
@@ -132,6 +132,7 @@ test("redacts bearer, basic, cookie, and token-like fields", () => {
   assert.match(out, /Cookie: <redacted>/i);
   assert.match(out, /Set-Cookie: <redacted>/i);
   assert.doesNotMatch(out, /supersecret/);
+  assert.doesNotMatch(out, /portsecret|portheader/);
   assert.doesNotMatch(out, /abc\.def-ghi/);
   assert.doesNotMatch(out, /YWJjMTIz/);
   assert.doesNotMatch(out, /keepsecret/);
