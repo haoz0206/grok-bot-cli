@@ -479,7 +479,9 @@ Resolve conflicts while preserving the fork's behavior and identity:
 
 After resolving source and dependency changes, run `npm ci` and `npm run check`.
 The check rebuilds `artifact/`; commit the regenerated bundle and marketplace files
-with the source changes. Add a scoped Changeset for shipped changes, including README
+with the source changes. The artifact manifest hashes every tracked file, so a change
+to docs or workflows needs the rebuild too. `npm ci` enables a pre-push hook that runs
+`scripts/check-artifact.mjs` and refuses a commit whose `artifact/` is stale. Add a scoped Changeset for shipped changes, including README
 changes covered by `.changeset/config.json`. Open the sync PR against this fork's `main`
 and describe any conflicts and retained fork differences.
 

@@ -21,6 +21,7 @@
     "check": "npm run validate && npm run build && npm run validate:artifact && npm run typecheck && npm test",
     "gbot": "node dist/bin/gbot.mjs",
     "prepack": "node scripts/agent-bundle.mjs prepack",
+    "prepare": "git config core.hooksPath .githooks || exit 0",
     "release": "changeset publish",
     "release:version": "changeset version && npm run build && npm run validate:artifact",
     "test": "npm run test:unit && npm run test:routes",

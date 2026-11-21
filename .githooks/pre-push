@@ -1,0 +1,8 @@
+#!/bin/sh
+# Refuse to push a commit whose artifact/ manifest is stale; CI would reject it.
+# `npm ci` / `npm install` enables this directory through the `prepare` script.
+zero=0000000000000000000000000000000000000000
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue # branch deletion
+  node scripts/check-artifact.mjs "$local_sha" || exit 1
+done
