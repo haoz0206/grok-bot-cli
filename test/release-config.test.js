@@ -56,10 +56,14 @@ test("committed artifact matches the complete source snapshot", async () => {
     readArtifactManifest(artifactRoot),
   ]);
 
+  // Windows has no executable bit, so inspect() reports none there. POSIX CI and
+  // scripts/check-artifact.mjs still check it against git's recorded mode.
+  const comparable = (inputs) =>
+    process.platform === "win32" ? inputs.map(({ executable, ...input }) => input) : inputs;
   assert.equal(source.state, "ready");
   assert.equal(artifact.status, "ok");
   assert.deepEqual(
-    artifact.manifest.compiler.project.sourceInputs,
-    source.projectContext.sourceInputs,
+    comparable(artifact.manifest.compiler.project.sourceInputs),
+    comparable(source.projectContext.sourceInputs),
   );
 });

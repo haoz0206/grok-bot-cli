@@ -30,6 +30,12 @@ failed checks or branch protection. Track the release commit's Actions run and
 registry version, not just the earlier run that created a release PR.
 Update this guide when the workflow or release commands change.
 
+The artifact manifest hashes every tracked file, docs and workflows included.
+After any change, run `npm run build` and commit the regenerated `artifact/` and
+marketplace files with it. The pre-push hook runs `scripts/check-artifact.mjs`
+and refuses a stale commit; `npm ci` enables the hook. Do not bypass it with
+`--no-verify`.
+
 Delete dead code, obsolete scripts, duplicate workarounds, and unused legacy
 installs. Check active owners/references first; preserve auth, operator env,
 durable data, and intentional duplicate suppression. Prefer existing helpers,
